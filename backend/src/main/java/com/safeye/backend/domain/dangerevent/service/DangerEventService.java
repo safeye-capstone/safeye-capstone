@@ -73,7 +73,7 @@ public class DangerEventService {
       return;
     }
 
-    String mockFileUrl = "http://localhost:8080/uploads/mock/" + file.getName();
+    String mockFileUrl = "http://localhost:8080/uploads/mock/images/" + file.getName();
 
     DangerEvent dangerEvent = DangerEvent.createDangerEvent(
         workZone,

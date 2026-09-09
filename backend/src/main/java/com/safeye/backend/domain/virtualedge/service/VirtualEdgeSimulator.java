@@ -31,7 +31,7 @@ public class VirtualEdgeSimulator {
   private final LinkedBlockingQueue<File> edgeQueue = new LinkedBlockingQueue<>(3);
 
   // 환경변수
-  private static final String MOCK_DIR_PATH = System.getProperty("user.dir") + "/uploads/mock/";
+  private static final String MOCK_DIR_PATH = System.getProperty("user.dir") + "/uploads/mock/images/";
 
   private volatile boolean isRunning = false;
   private int currentFileIndex = 0;
@@ -130,6 +130,11 @@ public class VirtualEdgeSimulator {
 
       log.info("VLM 분석 요청 발송 - 파일명: {}", filename);
       VlmResponseDto response = vlmApiService.analyzeLocalSimulatorFile(targetImage);
+
+      log.info("[VirtualEdge] VLM 분석 완료 - 위험여부: {}, 심각도: {}, 설명: {}",
+          response.isDanger(),
+          response.severity(),
+          response.vlmDescription());
 
       dangerEventService.processSimulatorDangerEvent(zone, targetImage, response);
 
