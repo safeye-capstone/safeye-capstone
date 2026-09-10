@@ -1,8 +1,12 @@
 import { useState, useRef } from "react";
-import { DEV_ZONE_ID, UPLOAD_IMAGE_ENDPOINT, MAX_IMAGE_SIZE_MB } from "../constants/config";
+import {
+  DEV_ZONE_ID,
+  UPLOAD_IMAGE_ENDPOINT,
+  MAX_IMAGE_SIZE_MB,
+} from "../constants/config";
 import { getApiErrorMessage } from "../utils/apiError";
 
-function PhotoUploadForm() {
+function PhotoUploadForm({ onResult }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -19,13 +23,15 @@ function PhotoUploadForm() {
     if (!file) {
       setSelectedFile(null);
       setPreviewUrl(null);
-      return
+      return;
     }
 
-    const sizeMB = file.size / (1024*1024);
-    
+    const sizeMB = file.size / (1024 * 1024);
+
     if (sizeMB > MAX_IMAGE_SIZE_MB) {
-      setFileError(`파일이 너무 큽니다 (${sizeMB.toFixed(1)}MB). ${MAX_IMAGE_SIZE_MB}MB 이하만 가능합니다.`,);
+      setFileError(
+        `파일이 너무 큽니다 (${sizeMB.toFixed(1)}MB). ${MAX_IMAGE_SIZE_MB}MB 이하만 가능합니다.`,
+      );
       setSelectedFile(null);
       setPreviewUrl(null);
       return;
@@ -56,20 +62,19 @@ function PhotoUploadForm() {
         },
       );
 
-      if(response.status === 413) {
+      if (response.status === 413) {
         throw new Error("파일 용량이 서버 제한을 초과했습니다.");
       }
 
       const json = await response.json();
 
-      if(!response.ok || !json.success) {
+      if (!response.ok || !json.success) {
         throw new Error(getApiErrorMessage(json, "업로드 실패"));
       }
 
       const data = json.data;
-      console.log("분석 결과:", data);
+      onResult?.(data);
       setUploadStatus("success");
-
     } catch (error) {
       console.error("전송 실패:", error);
       setErrorMessage(error.message);
@@ -109,17 +114,22 @@ function PhotoUploadForm() {
             <span className="text-sm font-semibold text-ink">
               클릭하여 이미지 선택
             </span>
-            <span className="text-xs text-muted">JPG, PNG, WEBP • 최대 {MAX_IMAGE_SIZE_MB}MB</span>
+            <span className="text-xs text-muted">
+              JPG, PNG, WEBP • 최대 {MAX_IMAGE_SIZE_MB}MB
+            </span>
           </>
         )}
       </div>
 
       {selectedFile && (
         <p className="text-sm text-muted mb-2">
-          선택된 파일: {selectedFile.name} ({(selectedFile.size/(1024*1024)).toFixed(1)}MB)
+          선택된 파일: {selectedFile.name} (
+          {(selectedFile.size / (1024 * 1024)).toFixed(1)}MB)
         </p>
       )}
-      {fileError && (<p className="text-danger text-sm font-semibold mt-2">{fileError}</p>)}
+      {fileError && (
+        <p className="text-danger text-sm font-semibold mt-2">{fileError}</p>
+      )}
 
       <button
         type="submit"
