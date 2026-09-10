@@ -1,8 +1,16 @@
-
 export const DEV_ZONES = [
-  { id: "144cf5bd-f998-4be6-8fc8-cc11395205e8", name: "A동 타설구역" },
-  { id: "ffd3ccd0-d455-4205-b16c-9ccf2bfec75a", name: "B동 자재창고" },
-  { id: "df5f3829-09eb-466c-80e8-d9d4dc4878f9", name: "C동 용접구역" },
+  {
+    id: "fe5bc22e-58c7-40f5-9d1b-b869203ce284",
+    zoneName: "A동 타설구역",
+  },
+  {
+    id: "2497dce7-8cdf-415d-822b-d92012bb18c7",
+    zoneName: "B동 자재창고",
+  },
+  {
+    id: "10cfa172-222c-4617-832c-9119243fd7e3",
+    zoneName: "C동 용접구역",
+  },
 ];
 
 export const DEV_ZONE_ID = DEV_ZONES[0].id;
