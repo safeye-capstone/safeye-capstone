@@ -73,7 +73,7 @@ function ResultList({ results = [], loading = false, error = null }) {
               </header>
 
               <p className="text-base leading-relaxed text-ink whitespace-pre-wrap break-keep">
-                {item.violatedRegulation || "설명을 생성하지 못했습니다."}
+                {item.vlmDescription || "설명을 생성하지 못했습니다."}
               </p>
 
               {item.violatedRegulation && (
