@@ -1,24 +1,16 @@
-from typing import Literal
+"""FastAPI 호환용 Schema import.
 
-from pydantic import BaseModel
+최종 API 응답 Schema의 실제 정의는
+app.schemas에서 관리한다.
+"""
+
+from app.schemas import (
+    Severity as SeverityType,
+    VLMResponse as AIAnalysisResponse,
+)
 
 
-SeverityType = Literal[
-    "CRITICAL",
-    "WARNING",
-    "INFO",
+__all__ = [
+    "SeverityType",
+    "AIAnalysisResponse",
 ]
-
-
-class AIAnalysisResponse(
-    BaseModel
-):
-    is_danger: bool
-
-    severity: SeverityType
-
-    vlm_description: str
-
-    violated_regulation: str
-
-    action_guide: str

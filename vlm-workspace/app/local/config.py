@@ -118,10 +118,10 @@ class LocalSettings:
     #   thinking 필드에 JSON이 들어가고 response가 비는 문제 발생
     #
     # 따라서 실제 테스트에서 안정적으로 동작한
-    # qwen3-vl:8b-instruct를 기본 모델로 사용
+    # Qwen2.5-VL 7B Q4를 기본 모델로 사용
     model: str = _env(
-        "MODEL",
-        "qwen3-vl:8b-instruct",
+    "MODEL",
+    "qwen2.5vl:7b-q4_K_M",
     )
 
     keep_alive: str = _env(
