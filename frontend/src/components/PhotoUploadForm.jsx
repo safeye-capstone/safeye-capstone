@@ -3,6 +3,7 @@ import {
   DEV_ZONE_ID,
   UPLOAD_IMAGE_ENDPOINT,
   MAX_IMAGE_SIZE_MB,
+  API_BASE,
 } from "../constants/config";
 import { getApiErrorMessage } from "../utils/apiError";
 
@@ -54,13 +55,10 @@ function PhotoUploadForm({ onResult }) {
     setUploadStatus(null);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}${UPLOAD_IMAGE_ENDPOINT}`,
-        {
-          method: "POST",
-          body: formData,
-        },
-      );
+      const response = await fetch(`${API_BASE}${UPLOAD_IMAGE_ENDPOINT}`, {
+        method: "POST",
+        body: formData,
+      });
 
       if (response.status === 413) {
         throw new Error("파일 용량이 서버 제한을 초과했습니다.");
