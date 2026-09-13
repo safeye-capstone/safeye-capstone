@@ -20,6 +20,23 @@ from app.rag.aggregator import (
     aggregate_frame_results,
 )
 
+from app.rag.confidence_calibrator import (
+    apply_confidence_recalibration,
+)
+
+from app.rag.reverification import (
+    apply_reverification,
+)
+
+from app.rag.final_decision import (
+    apply_final_decisions,
+)
+
+from app.rag.hazard_consolidator import (
+    consolidate_related_hazards,
+    get_primary_actionable_hazards,
+)
+
 from app.rag.query_builder import (
     build_search_query,
     normalize_vlm_analysis,
@@ -85,7 +102,7 @@ def parse_vlm_json(
 
         raw_response = "\n".join(
             lines
-        )
+        ).strip()
 
     try:
 
@@ -106,11 +123,11 @@ def parse_vlm_json(
 # ============================================================
 
 def analyze_frame(
-    frame_path,
+    frame_path: Path,
 ) -> dict:
     """
-    프레임 하나를 VLM으로 분석하고
-    Aggregator가 사용할 수 있는 형태로 정규화한다.
+    프레임 한 장을 VLM으로 분석하고
+    논리 정규화를 수행한다.
     """
 
     raw_response = analyze_image(
@@ -135,30 +152,26 @@ def analyze_frame(
 
 
 # ============================================================
-# 프레임 분석 결과 간단 출력
+# 프레임 분석 결과 출력
 # ============================================================
 
 def print_frame_summary(
     analysis: dict,
 ) -> None:
-    """
-    프레임 전체 JSON 대신
-    터미널에는 핵심 정보만 출력한다.
-    """
 
     frame_name = analysis.get(
         "frame",
-        "unknown"
+        "unknown",
     )
 
     workers = analysis.get(
         "workers",
-        []
+        [],
     )
 
     hazards = analysis.get(
         "hazards",
-        []
+        [],
     )
 
     detected_hazards = [
@@ -166,7 +179,7 @@ def print_frame_summary(
         for hazard in hazards
         if hazard.get(
             "detected",
-            False
+            False,
         )
     ]
 
@@ -195,17 +208,17 @@ def print_frame_summary(
 
         risk_type = hazard.get(
             "risk_type",
-            "UNKNOWN"
+            "UNKNOWN",
         )
 
         confidence = hazard.get(
             "confidence",
-            "LOW"
+            "LOW",
         )
 
         evidence = hazard.get(
             "evidence",
-            ""
+            "",
         )
 
         print(
@@ -226,26 +239,37 @@ def print_frame_summary(
 # ============================================================
 
 def attach_regulations(
-    aggregated_hazards: list[dict],
+    hazards: list[dict],
 ) -> list[dict]:
     """
-    최종적으로 detected=true인 위험에 대해서만
-    관련 산업안전 법령을 검색한다.
+    Final Decision 이후
+    실제 경고 대상으로 남은 위험에 대해서만
+    RAG 검색을 수행한다.
     """
 
     results = []
 
-    for hazard in aggregated_hazards:
+    for hazard in hazards:
 
         if not hazard.get(
             "detected",
-            False
+            False,
+        ):
+            continue
+
+        # 혹시 REJECTED가 들어오더라도
+        # RAG 검색하지 않도록 추가 방어
+        if (
+            hazard.get(
+                "final_decision"
+            )
+            == "REJECTED"
         ):
             continue
 
         risk_type = hazard.get(
             "risk_type",
-            "UNKNOWN"
+            "UNKNOWN",
         )
 
         query = build_search_query(
@@ -253,12 +277,15 @@ def attach_regulations(
         )
 
         print()
+
         print(
-            f"[RAG 검색] {risk_type}"
+            f"[RAG 검색] "
+            f"{risk_type}"
         )
 
         print(
-            f"  검색문: {query}"
+            f"  검색문: "
+            f"{query}"
         )
 
         try:
@@ -301,20 +328,16 @@ def attach_regulations(
 
 
 # ============================================================
-# 법령 이름 추출
+# 법령명 추출
 # ============================================================
 
 def get_regulation_name(
     regulation: dict,
 ) -> str:
-    """
-    metadata 구조가 조금 달라도
-    가능한 법령명을 찾아 반환한다.
-    """
 
     metadata = regulation.get(
         "metadata",
-        {}
+        {},
     )
 
     return (
@@ -344,7 +367,7 @@ def get_article(
 
     metadata = regulation.get(
         "metadata",
-        {}
+        {},
     )
 
     article = (
@@ -384,28 +407,121 @@ def get_article(
 
 
 # ============================================================
-# 통합 위험 간단 출력
+# Final Decision 결과 출력
 # ============================================================
 
-def print_aggregated_summary(
-    aggregated_hazards: list[dict],
+def print_decision_summary(
+    decided_hazards: list[dict],
 ) -> None:
 
     print()
+
+    print("=" * 60)
+    print("최종 위험 판단")
+    print("=" * 60)
+
+    if not decided_hazards:
+
+        print(
+            "판단할 위험이 없습니다."
+        )
+
+        return
+
+    for index, hazard in enumerate(
+        decided_hazards,
+        start=1,
+    ):
+
+        risk_type = hazard.get(
+            "risk_type",
+            "UNKNOWN",
+        )
+
+        decision = hazard.get(
+            "final_decision",
+            "UNKNOWN",
+        )
+
+        reason = hazard.get(
+            "final_decision_reason",
+            "",
+        )
+
+        final_label = hazard.get(
+            "final_reliability_label",
+            hazard.get(
+                "reliability_label",
+                "UNKNOWN",
+            ),
+        )
+
+        final_score = hazard.get(
+            "final_consistency_score",
+            hazard.get(
+                "consistency_score",
+                0.0,
+            ),
+        )
+
+        print()
+
+        print(
+            f"[판단 {index}]"
+        )
+
+        print(
+            f"위험 유형: "
+            f"{risk_type}"
+        )
+
+        print(
+            f"Final Decision: "
+            f"{decision}"
+        )
+
+        print(
+            f"최종 신뢰도: "
+            f"{final_label}"
+        )
+
+        print(
+            f"최종 일관성 점수: "
+            f"{final_score:.3f}"
+        )
+
+        if reason:
+
+            print(
+                f"판단 사유: "
+                f"{reason}"
+            )
+
+
+# ============================================================
+# 통합 위험 결과 출력
+# ============================================================
+
+def print_aggregated_summary(
+    hazards: list[dict],
+) -> None:
+
+    print()
+
     print("=" * 60)
     print("프레임 통합 위험 분석")
     print("=" * 60)
 
-    detected = [
+    detected_hazards = [
         hazard
-        for hazard in aggregated_hazards
+        for hazard in hazards
         if hazard.get(
             "detected",
-            False
+            False,
         )
     ]
 
-    if not detected:
+    if not detected_hazards:
 
         print(
             "최종적으로 확인된 위험이 없습니다."
@@ -414,7 +530,7 @@ def print_aggregated_summary(
         return
 
     for index, hazard in enumerate(
-        detected,
+        detected_hazards,
         start=1,
     ):
 
@@ -430,30 +546,152 @@ def print_aggregated_summary(
         )
 
         print(
-            f"신뢰도: "
+            f"Aggregator 신뢰도: "
             f"{hazard.get('confidence')}"
         )
 
         print(
+            f"Temporal support: "
+            f"{hazard.get(
+                'temporal_support',
+                0,
+            ):.3f}"
+        )
+
+        print(
+            f"최대 연속 탐지: "
+            f"{hazard.get(
+                'max_consecutive_detection_count',
+                0,
+            )}프레임"
+        )
+
+        print(
+            f"1차 consistency score: "
+            f"{hazard.get(
+                'consistency_score',
+                0,
+            ):.3f}"
+        )
+
+        print(
+            f"1차 reliability: "
+            f"{hazard.get(
+                'reliability_label',
+                'UNKNOWN',
+            )}"
+        )
+
+        # ----------------------------------------------------
+        # Prompt 재검증
+        # ----------------------------------------------------
+
+        reverification_applied = (
+            hazard.get(
+                "reverification_applied",
+                False,
+            )
+        )
+
+        print(
+            f"Prompt 재검증 실행: "
+            f"{'YES' if reverification_applied else 'NO'}"
+        )
+
+        if reverification_applied:
+
+            print(
+                f"재검증 프레임: "
+                f"{hazard.get(
+                    'reverification_frame',
+                    'unknown',
+                )}"
+            )
+
+            prompt_support = (
+                hazard.get(
+                    "prompt_agreement"
+                )
+            )
+
+            print(
+                f"Prompt 위험 지지율: "
+                f"{prompt_support}"
+            )
+
+            print(
+                f"재검증 Positive votes: "
+                f"{hazard.get(
+                    'reverification_positive_votes',
+                    0,
+                )}"
+            )
+
+            print(
+                f"재검증 Negative votes: "
+                f"{hazard.get(
+                    'reverification_negative_votes',
+                    0,
+                )}"
+            )
+
+        # ----------------------------------------------------
+        # 최종 신뢰도
+        # ----------------------------------------------------
+
+        final_score = hazard.get(
+            "final_consistency_score",
+            hazard.get(
+                "consistency_score",
+                0.0,
+            ),
+        )
+
+        final_label = hazard.get(
+            "final_reliability_label",
+            hazard.get(
+                "reliability_label",
+                "UNKNOWN",
+            ),
+        )
+
+        print(
+            f"최종 consistency score: "
+            f"{final_score:.3f}"
+        )
+
+        print(
+            f"최종 reliability: "
+            f"{final_label}"
+        )
+
+        print(
             f"검출 프레임 수: "
-            f"{hazard.get('detection_count', 0)}"
+            f"{hazard.get(
+                'detection_count',
+                0,
+            )}"
         )
 
-        frames = hazard.get(
-            "evidence_frames",
-            []
+        evidence_frames = (
+            hazard.get(
+                "evidence_frames",
+                [],
+            )
         )
 
-        if frames:
+        if evidence_frames:
 
             print(
                 "검출 프레임: "
-                + ", ".join(frames)
+                + ", ".join(
+                    evidence_frames
+                )
             )
 
 
 # ============================================================
-# 최종 결과 간단 출력
+# 최종 결과 출력
 # ============================================================
 
 def print_final_summary(
@@ -461,6 +699,7 @@ def print_final_summary(
 ) -> None:
 
     print()
+
     print("=" * 60)
     print("최종 분석 결과")
     print("=" * 60)
@@ -487,14 +726,15 @@ def print_final_summary(
 
     hazards = result.get(
         "hazards",
-        []
+        [],
     )
 
     if not hazards:
 
         print()
+
         print(
-            "최종 확인된 위험이 없습니다."
+            "최종 경고 대상으로 확정된 위험이 없습니다."
         )
 
         return
@@ -516,19 +756,87 @@ def print_final_summary(
             f"{hazard.get('risk_type')}"
         )
 
+        # ----------------------------------------------------
+        # Final Decision
+        # ----------------------------------------------------
+
+        final_decision = hazard.get(
+            "final_decision",
+            "UNKNOWN",
+        )
+
         print(
-            f"신뢰도: "
-            f"{hazard.get('confidence')}"
+            f"최종 판단: "
+            f"{final_decision}"
+        )
+
+        decision_reason = (
+            hazard.get(
+                "final_decision_reason",
+                "",
+            )
+        )
+
+        if decision_reason:
+
+            print(
+                f"판단 사유: "
+                f"{decision_reason}"
+            )
+
+        # ----------------------------------------------------
+        # 신뢰도
+        # ----------------------------------------------------
+
+        final_label = hazard.get(
+            "final_reliability_label",
+            hazard.get(
+                "reliability_label",
+                "UNKNOWN",
+            ),
+        )
+
+        final_score = hazard.get(
+            "final_consistency_score",
+            hazard.get(
+                "consistency_score",
+                0.0,
+            ),
+        )
+
+        print(
+            f"최종 신뢰도 등급: "
+            f"{final_label}"
+        )
+
+        print(
+            f"최종 일관성 점수: "
+            f"{final_score:.3f}"
+        )
+
+        print(
+            f"Prompt 재검증: "
+            f"{'YES' if hazard.get(
+                'reverification_applied',
+                False,
+            ) else 'NO'}"
         )
 
         print(
             f"검출 프레임 수: "
-            f"{hazard.get('detection_count', 0)}"
+            f"{hazard.get(
+                'detection_count',
+                0,
+            )}"
         )
+
+        # ----------------------------------------------------
+        # 판단 근거
+        # ----------------------------------------------------
 
         evidence = hazard.get(
             "evidence",
-            []
+            [],
         )
 
         if evidence:
@@ -543,18 +851,27 @@ def print_final_summary(
                     f"  - {item}"
                 )
 
+        # ----------------------------------------------------
+        # 관련 법령
+        # ----------------------------------------------------
+
         regulations = hazard.get(
             "regulations",
-            []
+            [],
         )
 
         print()
+
         print(
             f"관련 법령 "
-            f"(상위 {min(3, len(regulations))}개):"
+            f"(상위 "
+            f"{min(3, len(regulations))}개):"
         )
 
-        for law_index, regulation in enumerate(
+        for (
+            law_index,
+            regulation,
+        ) in enumerate(
             regulations[:3],
             start=1,
         ):
@@ -565,8 +882,10 @@ def print_final_summary(
                 )
             )
 
-            article = get_article(
-                regulation
+            article = (
+                get_article(
+                    regulation
+                )
             )
 
             distance = regulation.get(
@@ -591,16 +910,12 @@ def print_final_summary(
 
 
 # ============================================================
-# 전체 JSON 저장
+# 결과 JSON 저장
 # ============================================================
 
 def save_result(
     result: dict,
 ) -> Path:
-    """
-    터미널에는 요약만 출력하고,
-    전체 JSON은 파일로 저장한다.
-    """
 
     RESULT_DIR.mkdir(
         parents=True,
@@ -611,7 +926,7 @@ def save_result(
         Path(
             result.get(
                 "video",
-                "analysis"
+                "analysis",
             )
         )
         .stem
@@ -655,6 +970,7 @@ def analyze_video(
         )
 
     print()
+
     print("=" * 60)
     print("영상 분석 시작")
     print("=" * 60)
@@ -663,17 +979,17 @@ def analyze_video(
         f"영상: {video_path}"
     )
 
-    # --------------------------------------------------------
-    # 기존 프레임 제거
-    # --------------------------------------------------------
+    # ========================================================
+    # 1. 기존 프레임 제거
+    # ========================================================
 
     clear_frames(
         FRAME_DIR
     )
 
-    # --------------------------------------------------------
-    # 영상에서 프레임 추출
-    # --------------------------------------------------------
+    # ========================================================
+    # 2. 영상에서 프레임 추출
+    # ========================================================
 
     frames = extract_frames(
         video_path=video_path,
@@ -682,6 +998,7 @@ def analyze_video(
     )
 
     print()
+
     print(
         f"총 {len(frames)}개 "
         f"프레임 추출 완료"
@@ -694,9 +1011,9 @@ def analyze_video(
             "추출하지 못했습니다."
         )
 
-    # --------------------------------------------------------
-    # 프레임 분석
-    # --------------------------------------------------------
+    # ========================================================
+    # 3. 프레임별 VLM 분석
+    # ========================================================
 
     frame_results = []
 
@@ -708,6 +1025,7 @@ def analyze_video(
     ):
 
         print()
+
         print(
             f"[{index}/{len(frames)}] "
             f"{frame_path.name} 분석 중..."
@@ -715,15 +1033,16 @@ def analyze_video(
 
         try:
 
-            analysis = analyze_frame(
-                frame_path
+            analysis = (
+                analyze_frame(
+                    frame_path
+                )
             )
 
             frame_results.append(
                 analysis
             )
 
-            # 전체 JSON 대신 요약 출력
             print_frame_summary(
                 analysis
             )
@@ -743,34 +1062,144 @@ def analyze_video(
                 f"오류: {error}"
             )
 
-    # --------------------------------------------------------
-    # 프레임 결과 통합
-    # --------------------------------------------------------
+    if not frame_results:
+
+        raise RuntimeError(
+            "정상적으로 분석된 "
+            "프레임이 없습니다."
+        )
+
+    # ========================================================
+    # 4. Aggregator
+    #
+    # 동일 위험을 여러 프레임에서 통합하고
+    # Temporal consistency를 계산한다.
+    # ========================================================
 
     aggregated_hazards = (
         aggregate_frame_results(
             frame_results,
             min_detection_count=2,
+            temporal_window_size=3,
         )
     )
 
-    print_aggregated_summary(
-        aggregated_hazards
-    )
+    # ========================================================
+    # 5. Confidence Calibrator
+    #
+    # Temporal support
+    # Model confidence
+    # Consecutive support
+    #
+    # 를 이용해 1차 consistency score를 계산한다.
+    # ========================================================
 
-    # --------------------------------------------------------
-    # RAG 연결
-    # --------------------------------------------------------
-
-    hazards_with_regulations = (
-        attach_regulations(
+    calibrated_hazards = (
+        apply_confidence_recalibration(
             aggregated_hazards
         )
     )
 
-    # --------------------------------------------------------
-    # 최종 데이터
-    # --------------------------------------------------------
+    # ========================================================
+    # 6. Semantic Prompt Ensemble 재검증
+    #
+    # needs_reverification=True인 위험만
+    # 추가 VLM 재검증을 수행한다.
+    # ========================================================
+
+    reverified_hazards = (
+        apply_reverification(
+            aggregated_hazards=(
+                calibrated_hazards
+            ),
+            frame_results=(
+                frame_results
+            ),
+            frame_dir=(
+                FRAME_DIR
+            ),
+        )
+    )
+
+    # 재검증까지 끝난 결과 확인
+    print_aggregated_summary(
+        reverified_hazards
+    )
+
+    # ========================================================
+    # 7. Final Decision
+    #
+    # CONFIRMED
+    # REVIEW_REQUIRED
+    # REJECTED
+    # ========================================================
+
+    # ========================================================
+# Final Decision
+# ========================================================
+
+    decided_hazards = (
+        apply_final_decisions(
+            reverified_hazards
+        )
+    )
+
+
+# ========================================================
+# Hazard Relation / 중복 위험 통합
+#
+# 예:
+#
+# 안전고리 미체결
+# →
+# UNFASTENED_SAFETY_HARNESS
+# +
+# FALL_HAZARD
+#
+# 두 개가 같은 근거에서 나온 경우
+# 안전대 위험을 Primary로 사용한다.
+# ========================================================
+
+    consolidated_hazards = (
+        consolidate_related_hazards(
+            decided_hazards
+        )
+    )
+
+
+# ========================================================
+# 실제 사용자 경고 및 RAG 대상
+# ========================================================
+
+    actionable_hazards = (
+        get_primary_actionable_hazards(
+            consolidated_hazards
+        )
+    )
+
+    print()
+
+    print(
+        "[Final Decision] "
+        f"전체 후보 {len(decided_hazards)}개 → "
+        f"최종 경고 대상 {len(actionable_hazards)}개"
+    )
+
+    # ========================================================
+    # 9. RAG 법령 검색
+    #
+    # REJECTED 위험에는 RAG를 실행하지 않는다.
+    # ========================================================
+
+    hazards_with_regulations = (
+        attach_regulations(
+            actionable_hazards
+        )
+    )
+
+    # ========================================================
+    # 10. 최종 결과
+    # ========================================================
 
     result = {
 
@@ -789,12 +1218,59 @@ def analyze_video(
         "failed_frame_names":
             failed_frame_names,
 
-        # 전체 데이터는 유지
+        # ----------------------------------------------------
+        # 프레임별 VLM 원본 분석
+        # ----------------------------------------------------
+
         "frames":
             frame_results,
 
+        # ----------------------------------------------------
+        # Aggregator 결과
+        # ----------------------------------------------------
+
         "aggregated_hazards":
             aggregated_hazards,
+
+        # ----------------------------------------------------
+        # Confidence Calibrator 결과
+        # ----------------------------------------------------
+
+        "calibrated_hazards":
+            calibrated_hazards,
+
+        # ----------------------------------------------------
+        # Prompt Ensemble 재검증 결과
+        # ----------------------------------------------------
+
+        "reverified_hazards":
+            reverified_hazards,
+
+        # ----------------------------------------------------
+        # Final Decision 전체 기록
+        #
+        # REJECTED도 여기에 남아 있다.
+        # ----------------------------------------------------
+
+        "decided_hazards":
+            decided_hazards,
+
+        # 위험 관계 정리 결과
+        "consolidated_hazards":
+            consolidated_hazards,    
+
+        # ----------------------------------------------------
+        # 실제 경고 대상
+        #
+        # REJECTED 제외
+        # ----------------------------------------------------
+
+        "actionable_hazards":
+            actionable_hazards,
+
+        # ----------------------------------------------------
+        # RAG까지 완료된 최종 결과
+        # ----------------------------------------------------
 
         "hazards":
             hazards_with_regulations,
@@ -804,7 +1280,7 @@ def analyze_video(
 
 
 # ============================================================
-# 실행
+# 직접 실행
 # ============================================================
 
 if __name__ == "__main__":
@@ -813,17 +1289,16 @@ if __name__ == "__main__":
         "test.mp4"
     )
 
-    # 전체 JSON 파일 저장
     output_path = save_result(
         result
     )
 
-    # 터미널에는 요약 결과만 출력
     print_final_summary(
         result
     )
 
     print()
+
     print(
         f"전체 JSON 저장 위치: "
         f"{output_path}"

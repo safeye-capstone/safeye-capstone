@@ -222,6 +222,7 @@ def extract_requested_annex_no(
 
 VALID_RISK_TYPES = {
     "NO_HELMET",
+    "UNFASTENED_SAFETY_HARNESS",
     "FALL_HAZARD",
     "BLOCKED_PATH",
 }
@@ -259,6 +260,59 @@ RISK_RULES = {
             {
                 "collection": "osh_safety_rule",
                 "article": "제32조",
+            },
+        ],
+
+        "negative_keywords": [
+            "밀폐공간",
+            "금형",
+            "프레스",
+            "터널",
+            "공정안전보고서",
+            "출입구의 임의잠김",
+        ],
+    },
+
+
+    # --------------------------------------------------------
+    # 안전대 미착용 / 안전고리 미체결
+    # --------------------------------------------------------
+
+    "UNFASTENED_SAFETY_HARNESS": {
+
+        "positive_keywords": [
+            "안전대",
+            "안전고리",
+            "부착설비",
+            "체결",
+            "미체결",
+            "고소작업",
+            "추락",
+            "보호구",
+            "착용",
+        ],
+
+        "strong_keywords": [
+            "안전대",
+            "부착설비",
+            "안전대의 부착설비",
+        ],
+
+        # 제44조를 핵심으로 하되,
+        # 안전대 미착용 상황에서는 제32조,
+        # 일반 추락방지 맥락에서는 제42조도 후보로 포함한다.
+        "priority_targets": [
+            {
+                "collection": "osh_safety_rule",
+                "article": "제44조",
+            },
+            {
+                "collection": "osh_safety_rule",
+                "article": "제32조",
+            },
+            {
+                "collection": "osh_safety_rule",
+                "article": "제42조",
             },
         ],
 
@@ -385,6 +439,79 @@ RISK_RULES = {
 # ============================================================
 
 SCENARIO_RULES = {
+
+    # --------------------------------------------------------
+    # 안전대 미착용 / 안전고리 미체결
+    # --------------------------------------------------------
+
+    "UNFASTENED_SAFETY_HARNESS": [
+
+        # 제44조: 안전대를 착용했지만 안전고리가
+        # 부착설비에 연결되지 않은 경우를 가장 강하게 우선한다.
+        {
+            "name": "HARNESS_ANCHOR_NOT_CONNECTED",
+
+            "query_keywords": [
+                "안전고리",
+                "부착설비",
+                "체결하지",
+                "체결되지",
+                "미체결",
+                "안전대 부착",
+            ],
+
+            "targets": [
+                {
+                    "collection": "osh_safety_rule",
+                    "article": "제44조",
+                },
+            ],
+
+            "bonus": 7.0,
+        },
+
+        # 제32조: 고소작업 중 안전대 자체를 착용하지 않은 경우
+        {
+            "name": "HARNESS_NOT_WEARING",
+
+            "query_keywords": [
+                "안전대 미착용",
+                "안전대를 착용하지",
+                "안전대 착용하지",
+            ],
+
+            "targets": [
+                {
+                    "collection": "osh_safety_rule",
+                    "article": "제32조",
+                },
+            ],
+
+            "bonus": 6.0,
+        },
+
+        # 제42조: 일반적인 고소작업/추락 방지 맥락
+        {
+            "name": "HARNESS_GENERAL_FALL_PREVENTION",
+
+            "query_keywords": [
+                "고소작업",
+                "추락",
+                "높이 2미터",
+                "높은 장소",
+            ],
+
+            "targets": [
+                {
+                    "collection": "osh_safety_rule",
+                    "article": "제42조",
+                },
+            ],
+
+            "bonus": 2.0,
+        },
+    ],
+
 
     "FALL_HAZARD": [
 
@@ -551,7 +678,8 @@ SCENARIO_RULES = {
 
 RISK_MARKER_PATTERN = re.compile(
     r"\[RISK_TYPE="
-    r"(NO_HELMET|FALL_HAZARD|BLOCKED_PATH)"
+    r"(NO_HELMET|UNFASTENED_SAFETY_HARNESS|"
+    r"FALL_HAZARD|BLOCKED_PATH)"
     r"\]"
 )
 

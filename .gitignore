@@ -7,29 +7,22 @@
 # Java / Spring Boot
 # ============================================================
 
-# Compiled class files
 *.class
 
-# Package files
 *.jar
 *.war
 *.nar
 *.ear
 
-# Gradle / Spring Boot build files
 backend/build/
 backend/.gradle/
 backend/out/
 backend/bin/
 
-# Java crash logs
 hs_err_pid*
 replay_pid*
 
-# BlueJ
 *.ctxt
-
-# Mobile Tools for Java
 .mtj.tmp/
 
 
@@ -72,6 +65,7 @@ ENV/
 **/.venv/
 
 .venv_clean/
+**/.venv_clean/
 
 
 # ============================================================
@@ -118,6 +112,7 @@ logs/
 vlm-workspace/models/
 
 *.gguf
+*.bin
 *.pt
 *.pth
 *.ckpt
@@ -136,46 +131,46 @@ vlm-workspace/.cache/
 
 
 # ============================================================
-# ChromaDB
+# ChromaDB / Vector DB
 # ============================================================
 
-# 현재 사용 중인 RAG Vector DB
+# 현재 RAG Vector DB
 # regulations.jsonl을 이용해 로컬에서 재구축 가능
 vlm-workspace/data/rag/chroma_db/
 
-# 과거 또는 임시 ChromaDB 경로
+# 과거 / 임시 ChromaDB 경로
 vlm-workspace/scripts/chromadb_store/
 vlm-workspace/app/chroma_db/
 vlm-workspace/app/data/rag/chroma_db/
 
 
 # ============================================================
-# Runtime Generated Frames
+# VLM Runtime Frames
 # ============================================================
 
 vlm-workspace/data/frames/*
 
-# 폴더 자체는 Git에 유지
+# 폴더 자체는 유지
 !vlm-workspace/data/frames/.gitkeep
 
 
 # ============================================================
-# Test / Runtime Videos
+# VLM Test / Runtime Videos
 # ============================================================
 
 vlm-workspace/data/videos/*
 
-# 폴더 자체는 Git에 유지
+# 폴더 자체는 유지
 !vlm-workspace/data/videos/.gitkeep
 
 
 # ============================================================
-# API Upload Files
+# FastAPI Runtime Uploads
 # ============================================================
 
 vlm-workspace/data/uploads/*
 
-# 폴더 자체는 Git에 유지
+# 폴더 자체는 유지
 !vlm-workspace/data/uploads/.gitkeep
 
 
@@ -185,7 +180,6 @@ vlm-workspace/data/uploads/*
 
 vlm-workspace/data/test_Image/*
 
-# 폴더 자체를 유지하려면 .gitkeep 사용
 !vlm-workspace/data/test_Image/.gitkeep
 
 
@@ -195,21 +189,16 @@ vlm-workspace/data/test_Image/*
 
 vlm-workspace/data/results/*
 
-# 폴더 자체는 Git에 유지
 !vlm-workspace/data/results/.gitkeep
-
-
-
 
 
 # ============================================================
 # Processed Law Files
 # ============================================================
 
-# HWPX에서 추출한 중간 TXT 파일
+# HWPX → TXT 등 중간 산출물
 vlm-workspace/data/processed/*
 
-# 폴더 자체는 Git에 유지
 !vlm-workspace/data/processed/.gitkeep
 
 
@@ -217,31 +206,41 @@ vlm-workspace/data/processed/*
 # Parsed RAG Dataset
 # ============================================================
 
-# 중요:
-# 아래 파일은 의도적으로 ignore하지 않는다.
+# 아래 파일은 의도적으로 Git에 포함한다.
 #
 # vlm-workspace/data/parsed/regulations.jsonl
 #
-# 팀원이 GitHub에서 이 파일을 받아
+# 팀원이 GitHub에서 받아서
 # scripts/build_vector_db.py를 실행하면
-# 자신의 로컬 ChromaDB를 구축할 수 있다.
+# 각자 로컬 ChromaDB를 구축할 수 있다.
 
 
 # ============================================================
 # RAG Sync Runtime State
 # ============================================================
 
-# 향후 법령 자동 동기화 시 생성되는 상태 정보
 vlm-workspace/data/rag/sync/*
 
 !vlm-workspace/data/rag/sync/.gitkeep
 
 
 # ============================================================
-# API Test / Runtime Files
+# VLM Runtime / API Test Files
 # ============================================================
 
 vlm-workspace/response.json
+
+
+# ============================================================
+# Backend Runtime Uploaded Images
+#
+# 실제 업로드 이미지는 Git에 올리지 않음.
+# mock 데이터는 아래 규칙에 걸리지 않으므로 유지 가능.
+# ============================================================
+
+uploads/images/*
+
+!uploads/images/.gitkeep
 
 
 # ============================================================
