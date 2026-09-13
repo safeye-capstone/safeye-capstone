@@ -1,0 +1,25 @@
+# Render에 올리는 게이트웨이 이미지.
+# 실제 모델/Ollama는 이 컨테이너 안에 없다. Tailscale 등 사설망 너머의
+# 로컬 VLM 노드(app.local.serve)를 LOCAL_BASE_URL로 호출하고,
+# 그 노드가 죽어 있으면 mock 응답으로 자동 폴백한다.
+
+FROM python:3.11-slim
+
+WORKDIR /srv
+
+COPY requirements.local.txt .
+RUN pip install --no-cache-dir -r requirements.local.txt
+
+COPY app ./app
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8100 \
+    GATEWAY_FALLBACK_ENABLED=true
+
+# LOCAL_BASE_URL, LN_API_KEY는 Render 대시보드에서 환경변수로 주입한다.
+# (사설망 주소/키라서 이미지나 render.yaml에 평문으로 박아두지 않는다)
+
+EXPOSE 8100
+
+CMD ["sh", "-c", "uvicorn app.gateway.serve:app --host 0.0.0.0 --port ${PORT}"]

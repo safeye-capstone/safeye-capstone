@@ -29,5 +29,5 @@ logging:
 
 vlm:
   server:
-    url: http://localhost:8100
+    url: ${VLM_SERVER_URL:http://localhost:8100}
     timeout: 30 # VLM 통신 타임아웃 (30초)

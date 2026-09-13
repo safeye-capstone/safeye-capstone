@@ -41,3 +41,43 @@ services:
       # 외부에 공개할 때 내부 API와 admin API를 잠그고 싶으면 값을 넣는다.
       # - key: LN_API_KEY
       #   sync: false
+
+  # 실제 로컬 VLM 노드(Tailscale 너머)를 우선 호출하고, 죽어 있으면
+  # mock으로 자동 폴백하는 게이트웨이. Spring의 vlm.server.url은
+  # vlm-mock이 아니라 이 서비스의 URL을 바라봐야 한다.
+  - type: web
+    name: vlm-gateway
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: vlm-workspace
+    dockerfilePath: ./deploy/Dockerfile.gateway
+    dockerContext: .
+
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+
+    buildFilter:
+      paths:
+        - vlm-workspace/app/**
+        - vlm-workspace/deploy/**
+        - vlm-workspace/requirements.local.txt
+      ignoredPaths:
+        - vlm-workspace/notebooks/**
+        - "**/*.md"
+        - "**/*.ipynb"
+
+    envVars:
+      - key: PORT
+        value: "8100"
+      - key: GATEWAY_FALLBACK_ENABLED
+        value: "true"
+
+      # 로컬 VLM 노드의 Tailscale 주소. 예) http://100.x.x.x:8100
+      # Render 대시보드에서 실제 값을 직접 입력해야 한다 (레포에 평문 저장 X).
+      - key: LOCAL_BASE_URL
+        sync: false
+
+      # 로컬 노드가 X-Local-Key 인증을 요구하도록 설정했다면 같은 값을 넣는다.
+      - key: LN_API_KEY
+        sync: false
