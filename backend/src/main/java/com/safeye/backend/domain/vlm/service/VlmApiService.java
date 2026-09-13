@@ -50,6 +50,8 @@ public class VlmApiService {
         .contentType(MediaType.parseMediaType(
             file.getContentType() != null ? file.getContentType() : MediaType.IMAGE_JPEG_VALUE));
 
+    bodyBuilder.part("delay", 0);
+
     return executeWebClientPost(bodyBuilder, safeFilename);
   }
 
