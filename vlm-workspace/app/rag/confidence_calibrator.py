@@ -34,13 +34,7 @@ def clamp(
     값을 지정 범위 안으로 제한한다.
     """
 
-    return max(
-        minimum,
-        min(
-            maximum,
-            value,
-        ),
-    )
+    return max(minimum, min(maximum, value))
 
 
 # ============================================================
@@ -58,22 +52,12 @@ def clamp(
 def normalize_model_confidence(
     average_score: float,
 ) -> float:
-
     if average_score <= 0:
-
         return 0.0
 
-    normalized = (
-        average_score
-        / 3.0
-    )
+    normalized = average_score / 3.0
 
-    return round(
-        clamp(
-            normalized
-        ),
-        3,
-    )
+    return round(clamp(normalized), 3)
 
 
 # ============================================================
@@ -88,22 +72,12 @@ def calculate_consecutive_support(
     max_consecutive_count: int,
     target_count: int = 3,
 ) -> float:
-
     if max_consecutive_count <= 0:
-
         return 0.0
 
-    score = (
-        max_consecutive_count
-        / target_count
-    )
+    score = max_consecutive_count / target_count
 
-    return round(
-        clamp(
-            score
-        ),
-        3,
-    )
+    return round(clamp(score), 3)
 
 
 # ============================================================
@@ -123,42 +97,23 @@ def calculate_consistency_score(
     """
 
     score = (
-        TEMPORAL_WEIGHT
-        * temporal_support
-
-        +
-
-        MODEL_CONFIDENCE_WEIGHT
-        * model_confidence_score
-
-        +
-
-        CONSECUTIVE_WEIGHT
-        * consecutive_support
+        TEMPORAL_WEIGHT * temporal_support
+        + MODEL_CONFIDENCE_WEIGHT * model_confidence_score
+        + CONSECUTIVE_WEIGHT * consecutive_support
     )
 
-    return round(
-        clamp(
-            score
-        ),
-        3,
-    )
+    return round(clamp(score), 3)
 
 
 # ============================================================
 # Score → Label
 # ============================================================
 
-def score_to_label(
-    score: float,
-) -> str:
-
+def score_to_label(score: float) -> str:
     if score >= HIGH_THRESHOLD:
-
         return "HIGH"
 
     if score >= MEDIUM_THRESHOLD:
-
         return "MEDIUM"
 
     return "LOW"
@@ -189,89 +144,51 @@ def apply_confidence_recalibration(
     recalibrated_results = []
 
     for hazard in aggregated_hazards:
-
         # ----------------------------------------------------
         # 위험 후보 여부
         # ----------------------------------------------------
 
-        detected = bool(
-            hazard.get(
-                "detected",
-                False,
-            )
-        )
-
+        detected = bool(hazard.get("detected", False))
         temporal_support = float(
-            hazard.get(
-                "temporal_support",
-                0.0,
-            )
+            hazard.get("temporal_support", 0.0)
         )
-
         average_model_score = float(
-            hazard.get(
-                "average_model_confidence_score",
-                1.0,
-            )
+            hazard.get("average_model_confidence_score", 1.0)
         )
-
         max_consecutive_count = int(
-            hazard.get(
-                "max_consecutive_detection_count",
-                0,
-            )
+            hazard.get("max_consecutive_detection_count", 0)
         )
-
         meets_min_detection_count = bool(
-            hazard.get(
-                "meets_min_detection_count",
-                False,
-            )
+            hazard.get("meets_min_detection_count", False)
         )
 
         # ====================================================
         # Model Confidence 정규화
         # ====================================================
 
-        normalized_model_confidence = (
-            normalize_model_confidence(
-                average_model_score
-            )
+        normalized_model_confidence = normalize_model_confidence(
+            average_model_score
         )
 
         # ====================================================
         # Consecutive Support
         # ====================================================
 
-        consecutive_support = (
-            calculate_consecutive_support(
-                max_consecutive_count
-            )
+        consecutive_support = calculate_consecutive_support(
+            max_consecutive_count
         )
 
         # ====================================================
         # Consistency Score
         # ====================================================
 
-        consistency_score = (
-            calculate_consistency_score(
-                temporal_support=(
-                    temporal_support
-                ),
-                model_confidence_score=(
-                    normalized_model_confidence
-                ),
-                consecutive_support=(
-                    consecutive_support
-                ),
-            )
+        consistency_score = calculate_consistency_score(
+            temporal_support=temporal_support,
+            model_confidence_score=normalized_model_confidence,
+            consecutive_support=consecutive_support,
         )
 
-        reliability_label = (
-            score_to_label(
-                consistency_score
-            )
-        )
+        reliability_label = score_to_label(consistency_score)
 
         # ====================================================
         # 재검증 판단
@@ -284,36 +201,20 @@ def apply_confidence_recalibration(
         # ====================================================
 
         if not detected:
-
             needs_reverification = False
-
-            reverification_reason = (
-                "NO_DETECTION"
-            )
+            reverification_reason = "NO_DETECTION"
 
         elif not meets_min_detection_count:
-
             needs_reverification = True
-
-            reverification_reason = (
-                "MIN_DETECTION_COUNT_NOT_MET"
-            )
+            reverification_reason = "MIN_DETECTION_COUNT_NOT_MET"
 
         elif reliability_label != "HIGH":
-
             needs_reverification = True
-
-            reverification_reason = (
-                "RELIABILITY_BELOW_HIGH"
-            )
+            reverification_reason = "RELIABILITY_BELOW_HIGH"
 
         else:
-
             needs_reverification = False
-
-            reverification_reason = (
-                "HIGH_RELIABILITY"
-            )
+            reverification_reason = "HIGH_RELIABILITY"
 
         # ====================================================
         # 결과
@@ -322,27 +223,13 @@ def apply_confidence_recalibration(
         recalibrated_results.append(
             {
                 **hazard,
-
-                "normalized_model_confidence":
-                    normalized_model_confidence,
-
-                "consecutive_support":
-                    consecutive_support,
-
-                "consistency_score":
-                    consistency_score,
-
-                "reliability_label":
-                    reliability_label,
-
-                "needs_reverification":
-                    needs_reverification,
-
-                "reverification_reason":
-                    reverification_reason,
-
-                "confidence_method":
-                    "heuristic_temporal_v2",
+                "normalized_model_confidence": normalized_model_confidence,
+                "consecutive_support": consecutive_support,
+                "consistency_score": consistency_score,
+                "reliability_label": reliability_label,
+                "needs_reverification": needs_reverification,
+                "reverification_reason": reverification_reason,
+                "confidence_method": "heuristic_temporal_v2",
             }
         )
 

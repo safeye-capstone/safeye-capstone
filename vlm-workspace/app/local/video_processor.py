@@ -41,22 +41,17 @@ def extract_frames(
         exist_ok=True,
     )
 
-    cap = cv2.VideoCapture(
-        str(video_path)
-    )
+    cap = cv2.VideoCapture(str(video_path))
 
     if not cap.isOpened():
         raise ValueError(
             f"영상을 열 수 없습니다: {video_path}"
         )
 
-    fps = cap.get(
-        cv2.CAP_PROP_FPS
-    )
+    fps = cap.get(cv2.CAP_PROP_FPS)
 
     if fps <= 0:
         cap.release()
-
         raise ValueError(
             "영상의 FPS를 확인할 수 없습니다."
         )
@@ -70,37 +65,25 @@ def extract_frames(
     saved_frames: list[Path] = []
 
     while True:
-
         success, frame = cap.read()
 
         if not success:
             break
 
         if frame_index % frame_interval == 0:
-
             timestamp = frame_index / fps
+            filename = f"frame_{timestamp:07.2f}.jpg"
+            frame_path = output_dir / filename
 
-            filename = (
-                f"frame_{timestamp:07.2f}.jpg"
-            )
+            success, encoded_image = cv2.imencode(".jpg", frame)
 
-            frame_path = (
-                output_dir / filename
-            )
-
-            success, encoded_image = cv2.imencode(".jpg",frame)
             if not success:
                 raise RuntimeError(
-                f"프레임 인코딩 실패: {frame_path}"
+                    f"프레임 인코딩 실패: {frame_path}"
                 )
 
-            encoded_image.tofile(
-                str(frame_path)
-            )
-
-            saved_frames.append(
-                frame_path
-            )
+            encoded_image.tofile(str(frame_path))
+            saved_frames.append(frame_path)
 
         frame_index += 1
 
@@ -108,20 +91,13 @@ def extract_frames(
 
     return saved_frames
 
+
 if __name__ == "__main__":
+    from app.local.config import FRAME_DIR, VIDEO_DIR
 
-    from app.local.config import (
-        FRAME_DIR,
-        VIDEO_DIR,
-    )
+    video_path = VIDEO_DIR / "test.mp4"
 
-    video_path = (
-        VIDEO_DIR / "test.mp4"
-    )
-
-    clear_frames(
-        FRAME_DIR
-    )
+    clear_frames(FRAME_DIR)
 
     frames = extract_frames(
         video_path,
@@ -129,9 +105,7 @@ if __name__ == "__main__":
         interval_sec=2.0,
     )
 
-    print(
-        f"총 {len(frames)}개의 프레임 추출 완료"
-    )
+    print(f"총 {len(frames)}개의 프레임 추출 완료")
 
     for frame in frames:
         print(frame)

@@ -1,13 +1,7 @@
 from pathlib import Path
 
-from app.api_schemas import (
-    AIAnalysisResponse,
-)
-
-from app.pipeline import (
-    analyze_video,
-)
-
+from app.api_schemas import AIAnalysisResponse
+from app.pipeline import analyze_video
 from app.response_builder import (
     build_action_guide,
     build_violated_regulation,
@@ -22,23 +16,16 @@ RISK_LABELS = {
 }
 
 
-def get_final_hazards(
-    result: dict,
-) -> list[dict]:
+def get_final_hazards(result: dict) -> list[dict]:
     """
     pipeline.py에서 RAG까지 완료된
     최종 경고 대상만 가져온다.
     """
 
-    return result.get(
-        "hazards",
-        [],
-    )
+    return result.get("hazards", [])
 
 
-def calculate_video_severity(
-    result: dict,
-) -> str:
+def calculate_video_severity(result: dict) -> str:
     """
     영상 전체 분석 결과 기준 severity 산정.
 
@@ -46,9 +33,7 @@ def calculate_video_severity(
     사고 발생 시 영향 수준을 의미한다.
     """
 
-    hazards = get_final_hazards(
-        result
-    )
+    hazards = get_final_hazards(result)
 
     if not hazards:
         return "INFO"
@@ -61,38 +46,28 @@ def calculate_video_severity(
     # 고소작업 안전대 문제 또는
     # 실제 추락 위험
     if (
-        "UNFASTENED_SAFETY_HARNESS"
-        in risk_types
-        or
-        "FALL_HAZARD"
-        in risk_types
+        "UNFASTENED_SAFETY_HARNESS" in risk_types
+        or "FALL_HAZARD" in risk_types
     ):
         return "CRITICAL"
 
     # 일반적인 명확한 안전 위반
     if (
-        "NO_HELMET"
-        in risk_types
-        or
-        "BLOCKED_PATH"
-        in risk_types
+        "NO_HELMET" in risk_types
+        or "BLOCKED_PATH" in risk_types
     ):
         return "WARNING"
 
     return "WARNING"
 
 
-def build_video_description(
-    result: dict,
-) -> str:
+def build_video_description(result: dict) -> str:
     """
     영상 파이프라인의 최종 위험을
     사람이 읽을 수 있는 설명으로 만든다.
     """
 
-    hazards = get_final_hazards(
-        result
-    )
+    hazards = get_final_hazards(result)
 
     if not hazards:
         return (
@@ -103,34 +78,14 @@ def build_video_description(
     descriptions = []
 
     for hazard in hazards:
+        risk_type = hazard.get("risk_type", "UNKNOWN")
+        risk_label = RISK_LABELS.get(risk_type, risk_type)
+        evidence = hazard.get("evidence", [])
 
-        risk_type = hazard.get(
-            "risk_type",
-            "UNKNOWN",
-        )
+        if isinstance(evidence, str):
+            evidence_list = [evidence]
 
-        risk_label = RISK_LABELS.get(
-            risk_type,
-            risk_type,
-        )
-
-        evidence = hazard.get(
-            "evidence",
-            [],
-        )
-
-        if isinstance(
-            evidence,
-            str,
-        ):
-            evidence_list = [
-                evidence
-            ]
-
-        elif isinstance(
-            evidence,
-            list,
-        ):
+        elif isinstance(evidence, list):
             evidence_list = [
                 str(item).strip()
                 for item in evidence
@@ -141,77 +96,47 @@ def build_video_description(
             evidence_list = []
 
         if evidence_list:
-
             descriptions.append(
-                f"{risk_label}: "
-                f"{evidence_list[0]}"
+                f"{risk_label}: {evidence_list[0]}"
             )
-
         else:
-
             descriptions.append(
-                f"{risk_label} 위험이 "
-                "확인되었습니다."
+                f"{risk_label} 위험이 확인되었습니다."
             )
 
     return (
-        "영상 분석 결과 다음 위험이 "
-        "확인되었습니다. "
-        + " / ".join(
-            descriptions[:3]
-        )
+        "영상 분석 결과 다음 위험이 확인되었습니다. "
+        + " / ".join(descriptions[:3])
     )
 
 
-def collect_regulations(
-    result: dict,
-) -> list[dict]:
+def collect_regulations(result: dict) -> list[dict]:
     """
     각 위험에 연결된 RAG 법령을 모으고
     동일 법령/조항을 제거한다.
     """
 
-    hazards = get_final_hazards(
-        result
-    )
+    hazards = get_final_hazards(result)
 
     collected = []
-
     seen = set()
 
     for hazard in hazards:
-
-        regulations = hazard.get(
-            "regulations",
-            [],
-        )
+        regulations = hazard.get("regulations", [])
 
         for regulation in regulations:
-
-            metadata = regulation.get(
-                "metadata",
-                {},
-            )
+            metadata = regulation.get("metadata", {})
 
             key = (
-                metadata.get(
-                    "law_name"
-                ),
-                metadata.get(
-                    "article"
-                ),
+                metadata.get("law_name"),
+                metadata.get("article"),
             )
 
             if key in seen:
                 continue
 
-            seen.add(
-                key
-            )
-
-            collected.append(
-                regulation
-            )
+            seen.add(key)
+            collected.append(regulation)
 
     return collected
 
@@ -227,45 +152,32 @@ def analyze_video_for_api(
     전달된 영상은 VIDEO_DIR 안에 있어야 한다.
     """
 
-    video_path = Path(
-        video_path
-    )
+    video_path = Path(video_path)
 
     # ---------------------------------------------------------
     # 1. 기존 영상 분석 Pipeline
     # ---------------------------------------------------------
 
-    result = analyze_video(
-        video_path.name
-    )
+    result = analyze_video(video_path.name)
 
     # ---------------------------------------------------------
     # 2. 최종 위험
     # ---------------------------------------------------------
 
-    hazards = get_final_hazards(
-        result
-    )
-
-    is_danger = bool(
-        hazards
-    )
+    hazards = get_final_hazards(result)
+    is_danger = bool(hazards)
 
     # ---------------------------------------------------------
     # 3. severity
     # ---------------------------------------------------------
 
-    severity = calculate_video_severity(
-        result
-    )
+    severity = calculate_video_severity(result)
 
     # ---------------------------------------------------------
     # 4. RAG 법령
     # ---------------------------------------------------------
 
-    regulations = collect_regulations(
-        result
-    )
+    regulations = collect_regulations(result)
 
     # ---------------------------------------------------------
     # 5. response_builder가 사용할 최소 구조
@@ -280,24 +192,12 @@ def analyze_video_for_api(
     # ---------------------------------------------------------
 
     return AIAnalysisResponse(
-
         is_danger=is_danger,
-
         severity=severity,
-
-        vlm_description=
-            build_video_description(
-                result
-            ),
-
-        violated_regulation=
-            build_violated_regulation(
-                regulations
-            ),
-
-        action_guide=
-            build_action_guide(
-                response_analysis,
-                severity,
-            ),
+        vlm_description=build_video_description(result),
+        violated_regulation=build_violated_regulation(regulations),
+        action_guide=build_action_guide(
+            response_analysis,
+            severity,
+        ),
     )

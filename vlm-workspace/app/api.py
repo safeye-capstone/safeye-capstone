@@ -1,34 +1,14 @@
 import asyncio
-
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import (
-    FastAPI,
-    File,
-    HTTPException,
-    UploadFile,
-)
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 
-from starlette.concurrency import (
-    run_in_threadpool,
-)
-
-from app.api_schemas import (
-    AIAnalysisResponse,
-)
-
-from app.image_pipeline import (
-    analyze_image_for_api,
-)
-
-from app.video_pipeline import (
-    analyze_video_for_api,
-)
-
-from app.local.config import (
-    VIDEO_DIR,
-)
+from app.api_schemas import AIAnalysisResponse
+from app.image_pipeline import analyze_image_for_api
+from app.local.config import VIDEO_DIR
+from app.video_pipeline import analyze_video_for_api
 
 
 app = FastAPI(
@@ -41,30 +21,11 @@ app = FastAPI(
 # 기본 경로
 # ============================================================
 
-BASE_DIR = (
-    Path(__file__)
-    .resolve()
-    .parent
-    .parent
-)
+BASE_DIR = Path(__file__).resolve().parent.parent
+IMAGE_UPLOAD_DIR = BASE_DIR / "data" / "uploads"
 
-
-IMAGE_UPLOAD_DIR = (
-    BASE_DIR
-    / "data"
-    / "uploads"
-)
-
-IMAGE_UPLOAD_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
-
-
-VIDEO_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
+IMAGE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================
@@ -77,20 +38,17 @@ ALLOWED_IMAGE_CONTENT_TYPES = {
     "image/webp",
 }
 
-
 ALLOWED_VIDEO_CONTENT_TYPES = {
     "video/mp4",
     "video/x-msvideo",
     "video/quicktime",
 }
 
-
 IMAGE_SUFFIX_MAP = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
     "image/webp": ".webp",
 }
-
 
 VIDEO_SUFFIX_MAP = {
     "video/mp4": ".mp4",
@@ -114,11 +72,8 @@ VIDEO_ANALYSIS_LOCK = asyncio.Lock()
 # Health Check
 # ============================================================
 
-@app.get(
-    "/health"
-)
+@app.get("/health")
 async def health():
-
     return {
         "status": "ok"
     }
@@ -135,12 +90,7 @@ async def health():
 async def analyze_image_endpoint(
     image: UploadFile = File(...),
 ):
-
-    if (
-        image.content_type
-        not in ALLOWED_IMAGE_CONTENT_TYPES
-    ):
-
+    if image.content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -149,29 +99,19 @@ async def analyze_image_endpoint(
             ),
         )
 
-    suffix = IMAGE_SUFFIX_MAP[
-        image.content_type
-    ]
-
-    temp_path = (
-        IMAGE_UPLOAD_DIR
-        / f"{uuid4().hex}{suffix}"
-    )
+    suffix = IMAGE_SUFFIX_MAP[image.content_type]
+    temp_path = IMAGE_UPLOAD_DIR / f"{uuid4().hex}{suffix}"
 
     try:
-
         content = await image.read()
 
         if not content:
-
             raise HTTPException(
                 status_code=400,
                 detail="빈 이미지 파일입니다.",
             )
 
-        temp_path.write_bytes(
-            content
-        )
+        temp_path.write_bytes(content)
 
         result = await run_in_threadpool(
             analyze_image_for_api,
@@ -184,7 +124,6 @@ async def analyze_image_endpoint(
         raise
 
     except Exception as error:
-
         raise HTTPException(
             status_code=500,
             detail=(
@@ -194,12 +133,9 @@ async def analyze_image_endpoint(
         ) from error
 
     finally:
-
         if temp_path.exists():
-
             try:
                 temp_path.unlink()
-
             except OSError:
                 pass
 
@@ -215,12 +151,7 @@ async def analyze_image_endpoint(
 async def analyze_video_endpoint(
     video: UploadFile = File(...),
 ):
-
-    if (
-        video.content_type
-        not in ALLOWED_VIDEO_CONTENT_TYPES
-    ):
-
+    if video.content_type not in ALLOWED_VIDEO_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -229,37 +160,27 @@ async def analyze_video_endpoint(
             ),
         )
 
-    suffix = VIDEO_SUFFIX_MAP[
-        video.content_type
-    ]
+    suffix = VIDEO_SUFFIX_MAP[video.content_type]
 
     # pipeline.py의 analyze_video()가
     # VIDEO_DIR에서 파일을 찾기 때문에
     # 영상은 VIDEO_DIR에 임시 저장한다.
-    temp_path = (
-        VIDEO_DIR
-        / f"{uuid4().hex}{suffix}"
-    )
+    temp_path = VIDEO_DIR / f"{uuid4().hex}{suffix}"
 
     try:
-
         content = await video.read()
 
         if not content:
-
             raise HTTPException(
                 status_code=400,
                 detail="빈 영상 파일입니다.",
             )
 
-        temp_path.write_bytes(
-            content
-        )
+        temp_path.write_bytes(content)
 
         # 현재 FRAME_DIR을 공유하므로
         # 영상 Pipeline은 순차 실행
         async with VIDEO_ANALYSIS_LOCK:
-
             result = await run_in_threadpool(
                 analyze_video_for_api,
                 temp_path,
@@ -271,7 +192,6 @@ async def analyze_video_endpoint(
         raise
 
     except Exception as error:
-
         raise HTTPException(
             status_code=500,
             detail=(
@@ -281,11 +201,8 @@ async def analyze_video_endpoint(
         ) from error
 
     finally:
-
         if temp_path.exists():
-
             try:
                 temp_path.unlink()
-
             except OSError:
                 pass

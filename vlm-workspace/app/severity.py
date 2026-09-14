@@ -5,45 +5,22 @@ SEVERITY_ORDER = {
 }
 
 
-def get_detected_hazards(
-    analysis: dict,
-) -> list[dict]:
-
+def get_detected_hazards(analysis: dict) -> list[dict]:
     return [
         hazard
-        for hazard
-        in analysis.get(
-            "hazards",
-            []
-        )
-        if hazard.get(
-            "detected",
-            False
-        )
+        for hazard in analysis.get("hazards", [])
+        if hazard.get("detected", False)
     ]
 
 
-def has_elevated_worker(
-    analysis: dict,
-) -> bool:
-
+def has_elevated_worker(analysis: dict) -> bool:
     return any(
-        worker.get(
-            "work_level"
-        )
-        == "ELEVATED"
-
-        for worker
-        in analysis.get(
-            "workers",
-            []
-        )
+        worker.get("work_level") == "ELEVATED"
+        for worker in analysis.get("workers", [])
     )
 
 
-def calculate_severity(
-    analysis: dict,
-) -> str:
+def calculate_severity(analysis: dict) -> str:
     """
     severity는 VLM confidence와 별개다.
 
@@ -62,17 +39,13 @@ def calculate_severity(
     - 재확인 수준
     """
 
-    hazards = get_detected_hazards(
-        analysis
-    )
+    hazards = get_detected_hazards(analysis)
 
     if not hazards:
         return "INFO"
 
     risk_types = {
-        hazard.get(
-            "risk_type"
-        )
+        hazard.get("risk_type")
         for hazard in hazards
     }
 
@@ -81,11 +54,8 @@ def calculate_severity(
     # --------------------------------------------------------
 
     if (
-        "UNFASTENED_SAFETY_HARNESS"
-        in risk_types
-        and has_elevated_worker(
-            analysis
-        )
+        "UNFASTENED_SAFETY_HARNESS" in risk_types
+        and has_elevated_worker(analysis)
     ):
         return "CRITICAL"
 
@@ -96,17 +66,11 @@ def calculate_severity(
     fall_hazards = [
         hazard
         for hazard in hazards
-        if hazard.get(
-            "risk_type"
-        )
-        == "FALL_HAZARD"
+        if hazard.get("risk_type") == "FALL_HAZARD"
     ]
 
     for hazard in fall_hazards:
-
-        if hazard.get(
-            "proximity"
-        ) in {
+        if hazard.get("proximity") in {
             "IMMEDIATE",
             "NEAR",
         }:
@@ -117,10 +81,8 @@ def calculate_severity(
     # --------------------------------------------------------
 
     if (
-        "NO_HELMET"
-        in risk_types
-        and "FALL_HAZARD"
-        in risk_types
+        "NO_HELMET" in risk_types
+        and "FALL_HAZARD" in risk_types
     ):
         return "CRITICAL"
 
@@ -129,12 +91,9 @@ def calculate_severity(
     # --------------------------------------------------------
 
     if (
-        "NO_HELMET"
-        in risk_types
-        or "BLOCKED_PATH"
-        in risk_types
-        or "FALL_HAZARD"
-        in risk_types
+        "NO_HELMET" in risk_types
+        or "BLOCKED_PATH" in risk_types
+        or "FALL_HAZARD" in risk_types
     ):
         return "WARNING"
 

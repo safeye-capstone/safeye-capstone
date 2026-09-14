@@ -17,33 +17,20 @@ REJECTED = "REJECTED"
 def is_fully_rejected_by_prompts(
     hazard: dict[str, Any],
 ) -> bool:
-
     reverification_applied = bool(
-        hazard.get(
-            "reverification_applied",
-            False,
-        )
+        hazard.get("reverification_applied", False)
     )
 
     successful_votes = int(
-        hazard.get(
-            "reverification_successful_votes",
-            0,
-        )
+        hazard.get("reverification_successful_votes", 0)
     )
 
     positive_votes = int(
-        hazard.get(
-            "reverification_positive_votes",
-            0,
-        )
+        hazard.get("reverification_positive_votes", 0)
     )
 
     negative_votes = int(
-        hazard.get(
-            "reverification_negative_votes",
-            0,
-        )
+        hazard.get("reverification_negative_votes", 0)
     )
 
     return (
@@ -61,26 +48,16 @@ def is_fully_rejected_by_prompts(
 def is_fully_supported_by_prompts(
     hazard: dict[str, Any],
 ) -> bool:
-
     reverification_applied = bool(
-        hazard.get(
-            "reverification_applied",
-            False,
-        )
+        hazard.get("reverification_applied", False)
     )
 
     successful_votes = int(
-        hazard.get(
-            "reverification_successful_votes",
-            0,
-        )
+        hazard.get("reverification_successful_votes", 0)
     )
 
     positive_votes = int(
-        hazard.get(
-            "reverification_positive_votes",
-            0,
-        )
+        hazard.get("reverification_positive_votes", 0)
     )
 
     return (
@@ -140,21 +117,12 @@ def determine_final_decision(
     사람 또는 추가 ROI 검증이 필요한 상태로 둔다.
     """
 
-    detected = bool(
-        hazard.get(
-            "detected",
-            False,
-        )
-    )
+    detected = bool(hazard.get("detected", False))
 
     if not detected:
-
         return (
             REJECTED,
-            (
-                "VLM에서 위험 후보가 "
-                "탐지되지 않음"
-            ),
+            "VLM에서 위험 후보가 탐지되지 않음",
         )
 
     # ========================================================
@@ -162,31 +130,16 @@ def determine_final_decision(
     # ========================================================
 
     meets_min_detection_count = bool(
-        hazard.get(
-            "meets_min_detection_count",
-            False,
-        )
+        hazard.get("meets_min_detection_count", False)
     )
 
     final_label = hazard.get(
         "final_reliability_label",
-        hazard.get(
-            "reliability_label",
-            "LOW",
-        ),
+        hazard.get("reliability_label", "LOW"),
     )
 
-    prompt_rejected = (
-        is_fully_rejected_by_prompts(
-            hazard
-        )
-    )
-
-    prompt_supported = (
-        is_fully_supported_by_prompts(
-            hazard
-        )
-    )
+    prompt_rejected = is_fully_rejected_by_prompts(hazard)
+    prompt_supported = is_fully_supported_by_prompts(hazard)
 
     # ========================================================
     # 1. 최소 Temporal 탐지 조건 미충족
@@ -197,13 +150,11 @@ def determine_final_decision(
     # ========================================================
 
     if not meets_min_detection_count:
-
         # ----------------------------------------------------
         # Prompt 재검증 2회 모두 위험 부정
         # ----------------------------------------------------
 
         if prompt_rejected:
-
             return (
                 REJECTED,
                 (
@@ -222,7 +173,6 @@ def determine_final_decision(
         # ----------------------------------------------------
 
         if prompt_supported:
-
             return (
                 REVIEW_REQUIRED,
                 (
@@ -252,7 +202,6 @@ def determine_final_decision(
     # ========================================================
 
     if final_label == "HIGH":
-
         return (
             CONFIRMED,
             (
@@ -267,7 +216,6 @@ def determine_final_decision(
     # --------------------------------------------------------
 
     if final_label == "MEDIUM":
-
         return (
             REVIEW_REQUIRED,
             (
@@ -282,7 +230,6 @@ def determine_final_decision(
     # ========================================================
 
     if prompt_rejected:
-
         return (
             REJECTED,
             (
@@ -309,29 +256,17 @@ def determine_final_decision(
 def apply_final_decisions(
     hazards: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-
     results = []
 
     for hazard in hazards:
-
-        decision, reason = (
-            determine_final_decision(
-                hazard
-            )
-        )
+        decision, reason = determine_final_decision(hazard)
 
         results.append(
             {
                 **hazard,
-
-                "final_decision":
-                    decision,
-
-                "final_decision_reason":
-                    reason,
-
-                "final_decision_method":
-                    "temporal_prompt_policy_v2",
+                "final_decision": decision,
+                "final_decision_reason": reason,
+                "final_decision_method": "temporal_prompt_policy_v2",
             }
         )
 
@@ -355,14 +290,9 @@ def get_actionable_hazards(
     """
 
     return [
-
         hazard
-
         for hazard in hazards
-
-        if hazard.get(
-            "final_decision"
-        )
+        if hazard.get("final_decision")
         in {
             CONFIRMED,
             REVIEW_REQUIRED,

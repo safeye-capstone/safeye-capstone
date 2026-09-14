@@ -15,28 +15,23 @@ images = [
 ]
 
 
-def main():
-
+def main() -> None:
     print(f"총 {len(images)}회 테스트")
 
     for i, image_path in enumerate(images, start=1):
-
         print()
         print("=" * 60)
         print(f"[{i}/{len(images)}] {image_path.name}")
         print("=" * 60)
 
         try:
-
             result = analyze_image(
                 image_path,
                 max_retries=1,
             )
-
             print(result)
 
         except Exception as error:
-
             print()
             print("[분석 실패]")
             print(error)

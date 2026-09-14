@@ -18,25 +18,21 @@ VALID_RISK_TYPES = {
 # ============================================================
 
 SEARCH_QUERY_MAP = {
-
     "NO_HELMET": (
         "산업현장에서 근로자가 안전모를 착용하지 않은 상황. "
         "안전모, 보호구의 지급, 보호구 착용, "
         "머리 보호 및 낙하·비래 위험 관련 안전기준"
     ),
-
     "UNFASTENED_SAFETY_HARNESS": (
         "고소작업 중 안전대 사용 상태가 부적절한 상황. "
         "안전대 착용, 안전고리 체결, 안전대 부착설비, "
         "추락의 방지 및 고소작업 관련 안전기준"
     ),
-
     "FALL_HAZARD": (
         "산업현장에서 근로자의 추락 위험이 존재하는 상황. "
         "추락의 방지, 작업발판, 안전난간, 개구부, "
         "추락방호망, 안전대 및 고소작업 관련 안전기준"
     ),
-
     "BLOCKED_PATH": (
         "산업현장에서 작업자의 통행 경로 또는 작업장 통로가 "
         "자재, 장비 또는 장애물에 의해 방해되는 상황. "
@@ -73,18 +69,11 @@ VALID_PROXIMITY = {
 # Risk Type 문자열 정리
 # ============================================================
 
-def split_risk_types(
-    risk_type: str,
-) -> list[str]:
-
+def split_risk_types(risk_type: str) -> list[str]:
     if not risk_type:
         return []
 
-    values = (
-        risk_type
-        .replace(",", "|")
-        .split("|")
-    )
+    values = risk_type.replace(",", "|").split("|")
 
     return [
         value.strip()
@@ -97,9 +86,7 @@ def split_risk_types(
 # 작업자 상태 정규화
 # ============================================================
 
-def normalize_workers(
-    analysis: dict[str, Any],
-) -> None:
+def normalize_workers(analysis: dict[str, Any]) -> None:
     """
     VLM이 서로 모순되는 worker 상태를 생성했을 때
     논리적으로 일관된 값으로 정규화한다.
@@ -110,27 +97,17 @@ def normalize_workers(
     - ELEVATED / UNCERTAIN은 VLM의 원래 값을 유지한다.
     """
 
-    workers = analysis.get(
-        "workers",
-        []
-    )
+    workers = analysis.get("workers", [])
 
     for worker in workers:
-
-        work_level = worker.get(
-            "work_level",
-            "UNCERTAIN",
-        )
+        work_level = worker.get("work_level", "UNCERTAIN")
 
         # ----------------------------------------------------
         # 지상 작업자는 안전대 판단 대상이 아님
         # ----------------------------------------------------
 
         if work_level == "GROUND":
-
-            worker[
-                "harness"
-            ] = "NOT_APPLICABLE"
+            worker["harness"] = "NOT_APPLICABLE"
 
 
 # ============================================================
@@ -151,20 +128,9 @@ def get_harness_violation_workers(
 
     result = []
 
-    for worker in analysis.get(
-        "workers",
-        []
-    ):
-
-        work_level = worker.get(
-            "work_level",
-            "UNCERTAIN",
-        )
-
-        harness = worker.get(
-            "harness",
-            "UNCERTAIN",
-        )
+    for worker in analysis.get("workers", []):
+        work_level = worker.get("work_level", "UNCERTAIN")
+        harness = worker.get("harness", "UNCERTAIN")
 
         if (
             work_level == "ELEVATED"
@@ -173,10 +139,7 @@ def get_harness_violation_workers(
                 "WORN_NOT_CONNECTED",
             }
         ):
-
-            result.append(
-                worker
-            )
+            result.append(worker)
 
     return result
 
@@ -204,20 +167,11 @@ def normalize_vlm_analysis(
     # 1. Worker 상태 정규화
     # ========================================================
 
-    normalize_workers(
-        analysis
-    )
+    normalize_workers(analysis)
 
     # 실제 고소작업 + 안전대 위반 작업자
-    harness_violation_workers = (
-        get_harness_violation_workers(
-            analysis
-        )
-    )
-
-    has_harness_violation = bool(
-        harness_violation_workers
-    )
+    harness_violation_workers = get_harness_violation_workers(analysis)
+    has_harness_violation = bool(harness_violation_workers)
 
     normalized_hazards = []
 
@@ -225,51 +179,24 @@ def normalize_vlm_analysis(
     # 2. VLM이 직접 생성한 hazard 정규화
     # ========================================================
 
-    for hazard in analysis.get(
-        "hazards",
-        []
-    ):
-
+    for hazard in analysis.get("hazards", []):
         risk_types = split_risk_types(
-            hazard.get(
-                "risk_type",
-                "",
-            )
+            hazard.get("risk_type", "")
         )
 
-        detected = bool(
-            hazard.get(
-                "detected",
-                False,
-            )
-        )
+        detected = bool(hazard.get("detected", False))
 
-        confidence = hazard.get(
-            "confidence",
-            "LOW",
-        )
-
+        confidence = hazard.get("confidence", "LOW")
         if confidence not in CONFIDENCE_RANK:
             confidence = "LOW"
 
-        proximity = hazard.get(
-            "proximity",
-            "UNCERTAIN",
-        )
-
+        proximity = hazard.get("proximity", "UNCERTAIN")
         if proximity not in VALID_PROXIMITY:
             proximity = "UNCERTAIN"
 
-        evidence = (
-            hazard.get(
-                "evidence",
-                "",
-            )
-            or ""
-        ).strip()
+        evidence = (hazard.get("evidence", "") or "").strip()
 
         for risk_type in risk_types:
-
             # ------------------------------------------------
             # 안전대 위험 안전장치
             #
@@ -284,18 +211,13 @@ def normalize_vlm_analysis(
             # ------------------------------------------------
 
             if (
-                risk_type
-                == "UNFASTENED_SAFETY_HARNESS"
+                risk_type == "UNFASTENED_SAFETY_HARNESS"
                 and detected
                 and not has_harness_violation
             ):
-
                 detected = False
-
                 confidence = "LOW"
-
                 proximity = "UNCERTAIN"
-
                 evidence = (
                     "고소작업 중 안전대 미착용 또는 "
                     "미체결 상태가 명확하게 확인되지 않음"
@@ -303,20 +225,11 @@ def normalize_vlm_analysis(
 
             normalized_hazards.append(
                 {
-                    "risk_type":
-                        risk_type,
-
-                    "detected":
-                        detected,
-
-                    "confidence":
-                        confidence,
-
-                    "proximity":
-                        proximity,
-
-                    "evidence":
-                        evidence,
+                    "risk_type": risk_type,
+                    "detected": detected,
+                    "confidence": confidence,
+                    "proximity": proximity,
+                    "evidence": evidence,
                 }
             )
 
@@ -324,57 +237,28 @@ def normalize_vlm_analysis(
     # 3. Worker 정보 기반 위험 보완
     # ========================================================
 
-    for worker in analysis.get(
-        "workers",
-        []
-    ):
-
-        worker_id = worker.get(
-            "worker_id",
-            "unknown",
-        )
-
-        helmet = worker.get(
-            "helmet",
-            "UNCERTAIN",
-        )
-
-        work_level = worker.get(
-            "work_level",
-            "UNCERTAIN",
-        )
-
-        harness = worker.get(
-            "harness",
-            "UNCERTAIN",
-        )
+    for worker in analysis.get("workers", []):
+        worker_id = worker.get("worker_id", "unknown")
+        helmet = worker.get("helmet", "UNCERTAIN")
+        work_level = worker.get("work_level", "UNCERTAIN")
+        harness = worker.get("harness", "UNCERTAIN")
 
         # ----------------------------------------------------
         # 안전모 미착용 보완
         # ----------------------------------------------------
 
         if helmet == "NOT_WEARING":
-
             normalized_hazards.append(
                 {
-                    "risk_type":
-                        "NO_HELMET",
-
-                    "detected":
-                        True,
-
-                    "confidence":
-                        "HIGH",
-
-                    "proximity":
-                        "UNCERTAIN",
-
-                    "evidence":
-                        (
-                            f"작업자 {worker_id}가 "
-                            "안전모를 착용하지 않은 "
-                            "것으로 분석됨"
-                        ),
+                    "risk_type": "NO_HELMET",
+                    "detected": True,
+                    "confidence": "HIGH",
+                    "proximity": "UNCERTAIN",
+                    "evidence": (
+                        f"작업자 {worker_id}가 "
+                        "안전모를 착용하지 않은 "
+                        "것으로 분석됨"
+                    ),
                 }
             )
 
@@ -391,17 +275,13 @@ def normalize_vlm_analysis(
                 "WORN_NOT_CONNECTED",
             }
         ):
-
             if harness == "NOT_WEARING":
-
                 evidence = (
                     f"작업자 {worker_id}가 "
                     "고소작업 중 안전대를 "
                     "착용하지 않은 것으로 분석됨"
                 )
-
             else:
-
                 evidence = (
                     f"작업자 {worker_id}가 "
                     "고소작업 중 안전대를 착용했으나 "
@@ -411,20 +291,11 @@ def normalize_vlm_analysis(
 
             normalized_hazards.append(
                 {
-                    "risk_type":
-                        "UNFASTENED_SAFETY_HARNESS",
-
-                    "detected":
-                        True,
-
-                    "confidence":
-                        "HIGH",
-
-                    "proximity":
-                        "IMMEDIATE",
-
-                    "evidence":
-                        evidence,
+                    "risk_type": "UNFASTENED_SAFETY_HARNESS",
+                    "detected": True,
+                    "confidence": "HIGH",
+                    "proximity": "IMMEDIATE",
+                    "evidence": evidence,
                 }
             )
 
@@ -433,37 +304,22 @@ def normalize_vlm_analysis(
     # ========================================================
 
     unique_hazards = []
-
     seen = set()
 
     for hazard in normalized_hazards:
-
         key = (
-            hazard.get(
-                "risk_type"
-            ),
-            hazard.get(
-                "detected"
-            ),
-            hazard.get(
-                "evidence"
-            ),
+            hazard.get("risk_type"),
+            hazard.get("detected"),
+            hazard.get("evidence"),
         )
 
         if key in seen:
             continue
 
-        seen.add(
-            key
-        )
+        seen.add(key)
+        unique_hazards.append(hazard)
 
-        unique_hazards.append(
-            hazard
-        )
-
-    analysis[
-        "hazards"
-    ] = unique_hazards
+    analysis["hazards"] = unique_hazards
 
     return analysis
 
@@ -472,45 +328,23 @@ def normalize_vlm_analysis(
 # RAG 검색 Query 생성
 # ============================================================
 
-def build_search_query(
-    hazard: dict[str, Any],
-) -> str:
-
-    risk_type = hazard.get(
-        "risk_type",
-        "",
-    )
+def build_search_query(hazard: dict[str, Any]) -> str:
+    risk_type = hazard.get("risk_type", "")
 
     if risk_type not in VALID_RISK_TYPES:
         return ""
 
-    evidence = hazard.get(
-        "evidence",
-        [],
-    )
+    evidence = hazard.get("evidence", [])
 
     # ========================================================
     # evidence 형식 통일
     # ========================================================
 
-    if isinstance(
-        evidence,
-        str,
-    ):
-
-        evidence_list = [
-            evidence
-        ]
-
-    elif isinstance(
-        evidence,
-        list,
-    ):
-
+    if isinstance(evidence, str):
+        evidence_list = [evidence]
+    elif isinstance(evidence, list):
         evidence_list = evidence
-
     else:
-
         evidence_list = []
 
     evidence_text = " ".join(
@@ -519,9 +353,7 @@ def build_search_query(
         if str(item).strip()
     )
 
-    base_query = SEARCH_QUERY_MAP[
-        risk_type
-    ]
+    base_query = SEARCH_QUERY_MAP[risk_type]
 
     # ========================================================
     # 안전대 위험 세부 Query 분기
@@ -535,14 +367,8 @@ def build_search_query(
     # 을 구분해 RAG 검색문을 더 구체적으로 만든다.
     # ========================================================
 
-    if (
-        risk_type
-        == "UNFASTENED_SAFETY_HARNESS"
-    ):
-
-        evidence_lower = (
-            evidence_text.lower()
-        )
+    if risk_type == "UNFASTENED_SAFETY_HARNESS":
+        evidence_lower = evidence_text.lower()
 
         anchor_keywords = [
             "안전고리",
@@ -562,7 +388,6 @@ def build_search_query(
             keyword in evidence_lower
             for keyword in anchor_keywords
         ):
-
             base_query = (
                 "고소작업 중 근로자가 안전대를 착용하고 있으나 "
                 "안전고리를 부착설비에 체결하지 않은 상황. "
@@ -574,7 +399,6 @@ def build_search_query(
             keyword in evidence_lower
             for keyword in not_wearing_keywords
         ):
-
             base_query = (
                 "고소작업 중 근로자가 안전대를 착용하지 않은 상황. "
                 "안전대 착용, 보호구의 지급, "
@@ -587,16 +411,13 @@ def build_search_query(
     # 모든 위험 유형을 그대로 regulation_retriever에 전달한다.
     # ========================================================
 
-    marker = (
-        f"[RISK_TYPE={risk_type}]"
-    )
+    marker = f"[RISK_TYPE={risk_type}]"
 
     # ========================================================
     # 최종 Query
     # ========================================================
 
     if evidence_text:
-
         return (
             f"{marker} "
             f"{base_query}. "
@@ -604,7 +425,4 @@ def build_search_query(
             f"{evidence_text}"
         )
 
-    return (
-        f"{marker} "
-        f"{base_query}"
-    )
+    return f"{marker} {base_query}"

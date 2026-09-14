@@ -154,15 +154,6 @@ vlm-workspace/data/frames/*
 !vlm-workspace/data/frames/.gitkeep
 
 
-# ============================================================
-# VLM Test / Runtime Videos
-# ============================================================
-
-vlm-workspace/data/videos/*
-
-# 폴더 자체는 유지
-!vlm-workspace/data/videos/.gitkeep
-
 
 # ============================================================
 # FastAPI Runtime Uploads
