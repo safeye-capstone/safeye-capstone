@@ -7,7 +7,7 @@ mock 백엔드로 자동 폴백한다. Spring은 이 서버의 URL만 `vlm.serve
 바꾸면 된다 (mock 서버와 동일한 응답 계약을 유지하기 때문).
 
 실행:
-    uvicorn app.gateway.serve:app --host 0.0.0.0 --port 8100
+    uvicorn app.local.serve:app --host 0.0.0.0 --port 8100
 
 주요 환경변수:
     LOCAL_BASE_URL          로컬 VLM 노드 주소. 예) http://100.x.x.x:8100 (Tailscale)
