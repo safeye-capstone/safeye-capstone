@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { API_BASE } from "../constants/config";
 
 function StatsSummary() {
   const [results, setResults] = useState([]);
@@ -8,9 +9,7 @@ function StatsSummary() {
   useEffect(() => {
     const fetchResults = async () => {
       try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/results`,
-        );
+        const response = await fetch(`${API_BASE}/api/results`);
         const json = await response.json();
         setResults(json.data ?? []);
       } catch (err) {
@@ -35,7 +34,12 @@ function StatsSummary() {
   return (
     <div className="grid grid-cols-4 gap-4 mb-6">
       <StatCard label="총 분석 건수" value={total} unit="건" />
-      <StatCard label="고위험 발견" value={dangerCount} unit="건" color="text-danger" />
+      <StatCard
+        label="고위험 발견"
+        value={dangerCount}
+        unit="건"
+        color="text-danger"
+      />
       <StatCard label="이번 주 분석" value={thisWeekCount} unit="건" />
     </div>
   );

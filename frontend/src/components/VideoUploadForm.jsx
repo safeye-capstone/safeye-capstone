@@ -1,5 +1,10 @@
 import { useState, useRef } from "react";
-import { DEV_ZONE_ID, UPLOAD_VIDEO_ENDPOINT, MAX_VIDEO_SIZE_MB } from "../constants/config";
+import {
+  DEV_ZONE_ID,
+  UPLOAD_VIDEO_ENDPOINT,
+  MAX_VIDEO_SIZE_MB,
+  API_BASE,
+} from "../constants/config";
 import { getApiErrorMessage } from "../utils/apiError";
 
 function VideoUploadForm() {
@@ -49,21 +54,18 @@ function VideoUploadForm() {
     setUploadStatus(null);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}${UPLOAD_VIDEO_ENDPOINT}`,
-        {
-          method: "POST",
-          body: formData,
-        },
-      );
+      const response = await fetch(`${API_BASE}${UPLOAD_VIDEO_ENDPOINT}`, {
+        method: "POST",
+        body: formData,
+      });
 
-      if(response.status === 413) {
+      if (response.status === 413) {
         throw new Error("파일 용량이 서버 제한을 초과했습니다.");
       }
 
       const json = await response.json();
 
-      if(!response.ok || !json.success) {
+      if (!response.ok || !json.success) {
         throw new Error(getApiErrorMessage(json, "업로드 실패"));
       }
 
@@ -86,7 +88,8 @@ function VideoUploadForm() {
     >
       <h2 className="text-[14.5px] font-bold mb-4">영상 업로드</h2>
       <p className="text-xs text-warn font-semibold mb-3">
-        영상 분석은 현재 준비 중입니다. 업로드는 가능하지만 분석 결과가 제공되지는 않습니다.
+        영상 분석은 현재 준비 중입니다. 업로드는 가능하지만 분석 결과가
+        제공되지는 않습니다.
       </p>
       <input
         type="file"
