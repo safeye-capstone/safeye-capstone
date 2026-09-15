@@ -23,9 +23,9 @@ def _int_env(key: str, default: int) -> int:
 
 @dataclass(frozen=True)
 class Settings:
-    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", os.getenv("LN_OLLAMA_BASE_URL", "http://127.0.0.1:11434"))
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", os.getenv("LN_OLLAMA_BASE_URL", "http://166.104.223.60:11434"))
     local_base_url: str = os.getenv("LOCAL_BASE_URL", "http://127.0.0.1:8100")
-    local_model: str = os.getenv("LOCAL_MODEL", os.getenv("LN_MODEL", "qwen3-vl:8b-q4_K_M"))
+    local_model: str = os.getenv("LOCAL_MODEL", os.getenv("LN_MODEL", "qwen2.5vl:7b-q4_K_M"))
     local_connect_timeout: float = _float_env("LOCAL_CONNECT_TIMEOUT", 3.0)
     local_read_timeout: float = _float_env("LOCAL_READ_TIMEOUT", 60.0)
     max_output_tokens: int = _int_env("MAX_OUTPUT_TOKENS", 400)
