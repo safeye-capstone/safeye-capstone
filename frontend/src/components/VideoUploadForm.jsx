@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
 import {
-  DEV_ZONE_ID,
   UPLOAD_VIDEO_ENDPOINT,
   MAX_VIDEO_SIZE_MB,
   API_BASE,
 } from "../constants/config";
 import { getApiErrorMessage } from "../utils/apiError";
+import { useZones } from "../hooks/useZones";
+import { matchZone } from "../utils/zone";
 
 function VideoUploadForm() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -14,6 +15,9 @@ function VideoUploadForm() {
   const [uploadStatus, setUploadStatus] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [fileError, setFileError] = useState(null);
+  const { zones } = useZones();
+  const [zoneId, setZoneId] = useState("");
+  const [autoMatched, setAutoMatched] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -24,31 +28,46 @@ function VideoUploadForm() {
     if (!file) {
       setSelectedFile(null);
       setPreviewUrl(null);
+      setZoneId("");
+      setAutoMatched(false);
       return;
     }
 
     const sizeMB = file.size / (1024 * 1024);
+
     if (sizeMB > MAX_VIDEO_SIZE_MB) {
       setFileError(
         `파일이 너무 큽니다 (${sizeMB.toFixed(1)}MB). ${MAX_VIDEO_SIZE_MB}MB 이하만 가능합니다.`,
       );
       setSelectedFile(null);
       setPreviewUrl(null);
+      setZoneId("");
+      setAutoMatched(false);
       return;
     }
 
     setFileError(null);
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
+
+    const hit = matchZone(zones, file.name);
+    setZoneId(hit?.id ?? "");
+    setAutoMatched(Boolean(hit));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedFile) return;
 
+    if (!zoneId) {
+      setErrorMessage("구역을 선택해주세요.");
+      setUploadStatus("error");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("file", selectedFile);
-    formData.append("zoneId", DEV_ZONE_ID);
+    formData.append("zoneId", zoneId);
 
     setUploading(true);
     setUploadStatus(null);
@@ -130,6 +149,32 @@ function VideoUploadForm() {
       )}
       {fileError && (
         <p className="text-danger text-sm font-semibold mt-2">{fileError}</p>
+      )}
+
+      {selectedFile && (
+        <div>
+          <label>구역</label>
+          <select
+            value={zoneId}
+            onChange={(e) => {
+              setZoneId(e.target.value);
+              setAutoMatched(false);
+            }}
+          >
+            <option value="">구역 선택</option>
+            {zones.map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.zoneName}{" "}
+              </option>
+            ))}
+          </select>
+
+          {autoMatched ? (
+            <p>파일명에서 구역을 자동 인식했습니다.</p>
+          ) : (
+            <p>파일명에서 구역을 찾지 못했습니다. 직접 선택해주세요.</p>
+          )}
+        </div>
       )}
 
       <button
