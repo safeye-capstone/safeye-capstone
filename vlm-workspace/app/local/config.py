@@ -64,7 +64,7 @@ _load_env_file()
 
 @dataclass(frozen=True)
 class LocalSettings:
-    ollama_base_url: str = _env("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    ollama_base_url: str = _env("OLLAMA_BASE_URL", "http://166.104.223.60:11434")
     model: str = _env("MODEL", "qwen2.5vl:7b-q4_K_M")
     keep_alive: str = _env("KEEP_ALIVE", "30m")
     num_ctx: int = _int_env("NUM_CTX", 8192)

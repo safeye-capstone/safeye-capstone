@@ -84,7 +84,7 @@ public class VlmApiService {
   // [헬퍼 메서드] 조립된 MultipartBodyBuilder를 WebClient에 태워 전송 및 에러 핸들링
   private VlmResponseDto executeWebClientPost(MultipartBodyBuilder bodyBuilder, String filename) {
     return vlmWebClient.post()
-        .uri("/v1/analyze")
+        .uri("/api/vlm/analyze")
         .contentType(MediaType.MULTIPART_FORM_DATA)
         .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
         .retrieve()
