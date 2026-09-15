@@ -4,7 +4,7 @@ import { getPageMeta } from "../../constants/menu";
 
 function Topbar({ onToggleSidebar }) {
   const location = useLocation();
-  const { title } = getPageMeta(location.pathname);
+  const { label } = getPageMeta(location.pathname);
 
   return (
     <header className="h-16 shrink-0 bg-white border-b border-border flex items-center gap-4 px-8">
@@ -17,7 +17,7 @@ function Topbar({ onToggleSidebar }) {
         <Menu size={20} />
       </button>
 
-      <h1 className="text-lg font-bold tracking-tight">{title}</h1>
+      <h1 className="text-lg font-bold tracking-tight">{label}</h1>
     </header>
   );
 }
