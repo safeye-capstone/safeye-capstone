@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useOutletContext } from "react-router-dom";
 import {
   DEV_ZONE_ID,
   UPLOAD_IMAGE_ENDPOINT,
@@ -8,6 +9,7 @@ import {
 import { getApiErrorMessage } from "../utils/apiError";
 
 function PhotoUploadForm({ onResult }) {
+  const { pushAlert } = useOutletContext() ?? {};
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -72,6 +74,14 @@ function PhotoUploadForm({ onResult }) {
 
       const data = json.data;
       onResult?.(data);
+
+      if (
+        pushAlert &&
+        (data.severity === "CRITICAL" || data.severity === "WARNING")
+      ) {
+        pushAlert(data);
+      }
+
       setUploadStatus("success");
     } catch (error) {
       console.error("전송 실패:", error);
