@@ -34,23 +34,6 @@ public class DangerEventService {
 
     VlmResponseDto vlmResponseDto = vlmApiService.analyzeFile(request.file());
 
-    // 안전한 상황 isDanger = false 일 경우
-    if (!vlmResponseDto.isDanger()) {
-      log.info("정상 상황 감지. DB 적재 스킵 - isDanger: false");
-
-      // TODO: 임시 응답 확인용 (추후 삭제)
-      DangerEvent dangerEvent = DangerEvent.createDangerEvent(
-          workZone,
-          vlmResponseDto.severity(),
-          localFileUrl,
-          vlmResponseDto.vlmDescription(),
-          vlmResponseDto.violatedRegulation(),
-          vlmResponseDto.actionGuide(),
-          null
-      );
-      return DangerEventDto.from(dangerEvent);
-    }
-
     DangerEvent dangerEvent = DangerEvent.createDangerEvent(
         workZone,
         vlmResponseDto.severity(),
@@ -63,16 +46,11 @@ public class DangerEventService {
 
     dangerEventRepository.save(dangerEvent);
 
-    log.info("위험 이벤트 저장 완료 - dangerEventId: {}", dangerEvent.getId());
+    log.info("위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}", dangerEvent.getId(), vlmResponseDto.severity());
     return DangerEventDto.from(dangerEvent);
   }
 
   public void processSimulatorDangerEvent(WorkZone workZone, File file, VlmResponseDto vlmResponseDto) {
-    if (!vlmResponseDto.isDanger()) {
-      log.info("정상 상황 감지. DB 적재 스킵 - isDanger: false");
-      return;
-    }
-
     String mockFileUrl = "http://localhost:8080/uploads/mock/images/" + file.getName();
 
     DangerEvent dangerEvent = DangerEvent.createDangerEvent(
@@ -86,7 +64,7 @@ public class DangerEventService {
     );
 
     dangerEventRepository.save(dangerEvent);
-    log.info("위험 이벤트 저장 완료 - dangerEventId: {}", dangerEvent.getId());
+    log.info("위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}", dangerEvent.getId(), vlmResponseDto.severity());
 
     eventPublisher.publishEvent(
             new DangerEventCreatedEvent(DangerEventDto.from(dangerEvent))
