@@ -1,12 +1,14 @@
 import StatsSummary from "../components/StatsSummary";
 import ResultList from "../components/ResultList";
 import { useOutletContext } from "react-router-dom";
+import PageHeader from "../components/layout/PageHeader";
 
 function DashboardPage() {
   const { alerts, connected } = useOutletContext();
 
   return (
     <div>
+      <PageHeader />
       <StatsSummary />
 
       <div className="bg-white border border-border rounded-[14px] p-6 mb-6">

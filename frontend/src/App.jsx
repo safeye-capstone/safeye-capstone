@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import DashboardPage from "./pages/DashboardPage";
 import AnalyzeImagePage from "./pages/AnalyzeImagePage";
 import AnalyzeVideoPage from "./pages/AnalyzeVideoPage";
+import ComingSoonPage from "./pages/ComingSoonPage";
 import AppLayout from "./components/layout/AppLayout";
 
 function App() {
@@ -12,6 +13,16 @@ function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/analyze/image" element={<AnalyzeImagePage />} />
           <Route path="/analyze/video" element={<AnalyzeVideoPage />} />
+
+          <Route path="/monitor" element={<ComingSoonPage />} />
+          <Route path="/history" element={<ComingSoonPage />} />
+          <Route path="/history/:id" element={<ComingSoonPage />} />
+          <Route path="/compliance" element={<ComingSoonPage />} />
+          <Route path="/compliance/:no" element={<ComingSoonPage />} />
+          <Route path="/report" element={<ComingSoonPage />} />
+          <Route path="/settings" element={<ComingSoonPage />} />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

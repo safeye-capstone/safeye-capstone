@@ -2,6 +2,7 @@ import { useState } from "react";
 import PhotoUploadForm from "../components/PhotoUploadForm";
 import ResultList from "../components/ResultList";
 import { MOCK_RESULTS } from "../fixtures/mockResults";
+import PageHeader from "../components/layout/PageHeader";
 
 const useMock = new URLSearchParams(window.location.search).has("mock");
 
@@ -22,6 +23,7 @@ function AnalyzeImagePage() {
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <PageHeader />
       <PhotoUploadForm onResult={handleResult} />
       <div className="flex-1 min-w-0 w-full">
         <ResultList results={results} />
