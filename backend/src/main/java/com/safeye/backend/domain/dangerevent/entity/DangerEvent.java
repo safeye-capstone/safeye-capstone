@@ -56,6 +56,9 @@ public class DangerEvent extends BaseEntity {
 
   private Instant resolvedAt;
 
+  @Column(nullable = false)
+  private boolean isFalseAlarm = false;
+
   public static DangerEvent createDangerEvent(WorkZone workZone, Severity severity, String fileUrl,
       String vlmDescription, String violatedRegulation,
       String actionGuide, Map<String, Object> ragMetadata) {
