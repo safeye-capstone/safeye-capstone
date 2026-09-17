@@ -46,11 +46,13 @@ public class DangerEventService {
 
     dangerEventRepository.save(dangerEvent);
 
-    log.info("위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}", dangerEvent.getId(), vlmResponseDto.severity());
+    log.info("위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}", dangerEvent.getId(),
+        vlmResponseDto.severity());
     return DangerEventDto.from(dangerEvent);
   }
 
-  public void processSimulatorDangerEvent(WorkZone workZone, File file, VlmResponseDto vlmResponseDto) {
+  public void processSimulatorDangerEvent(WorkZone workZone, File file,
+      VlmResponseDto vlmResponseDto) {
     String mockFileUrl = "http://localhost:8080/uploads/mock/images/" + file.getName();
 
     DangerEvent dangerEvent = DangerEvent.createDangerEvent(
@@ -64,10 +66,9 @@ public class DangerEventService {
     );
 
     dangerEventRepository.save(dangerEvent);
-    log.info("위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}", dangerEvent.getId(), vlmResponseDto.severity());
+    log.info("[VirtualEdge] 위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}",
+        dangerEvent.getId(), vlmResponseDto.severity());
 
-    eventPublisher.publishEvent(
-            new DangerEventCreatedEvent(DangerEventDto.from(dangerEvent))
-    );
+    eventPublisher.publishEvent(new DangerEventCreatedEvent(DangerEventDto.from(dangerEvent)));
   }
 }

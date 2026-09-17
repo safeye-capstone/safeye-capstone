@@ -58,8 +58,6 @@ public class ComplianceReport extends BaseEntity {
   @Column(nullable = false, length = 50)
   private String reportType;
 
-  // TODO: 추후 생성 일시 추가
-
   public static ComplianceReport createDailyReport(
       String title, LocalDate targetDate,
       Integer total, Integer critical, Integer warning,
