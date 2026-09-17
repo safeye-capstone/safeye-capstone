@@ -18,6 +18,8 @@ public record ComplianceReportDto(
     SummaryInfo summary,
     String fileUrl,
     String reportType
+
+    // TODO: 추후 생성 일시 추가
 ) {
 
   public record SummaryInfo(
