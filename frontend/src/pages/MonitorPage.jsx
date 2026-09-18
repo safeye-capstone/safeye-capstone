@@ -1,10 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Play, Square, Radio, AlertTriangle } from "lucide-react";
 import { startVirtualEdge, stopVirtualEdge } from "../api/virtualEdge";
-
-const TOTAL_IMAGES = 44;
-const PUSH_RATE_SEC = 6;
 
 const SEVERITY_STYLE = {
   CRITICAL: { label: "위험", cls: "border-red-200 bg-red-50 text-red-700" },
@@ -33,24 +30,6 @@ export default function MonitorPage() {
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
-  const [remaining, setRemaining] = useState(0);
-
-  useEffect(() => {
-    if (!running) return;
-
-    const timer = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          setRunning(false);
-          setStatus("모의 이미지 전송 완료");
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [running]);
 
   const handleToggle = async () => {
     setPending(true);
@@ -60,11 +39,9 @@ export default function MonitorPage() {
         const message = await stopVirtualEdge();
         setStatus(message);
         setRunning(false);
-        setRemaining(0);
       } else {
         const message = await startVirtualEdge();
         setStatus(message);
-        setRemaining(TOTAL_IMAGES * PUSH_RATE_SEC);
         setRunning(true);
       }
     } catch (e) {
@@ -97,9 +74,7 @@ export default function MonitorPage() {
           </span>
           <div>
             <p className="font-semibold text-gray-900">
-              {running
-                ? `가상 엣지 구동 중 (약 ${remaining}초 남음)`
-                : "가상 엣지 정지됨"}
+              {running ? "가상 엣지 구동 중" : "가상 엣지 정지됨"}
             </p>
             <p className="text-xs text-gray-500">
               {status ?? "대기 중"} / 실시간 알림{" "}
