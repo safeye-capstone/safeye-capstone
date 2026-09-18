@@ -1,56 +1,257 @@
-# Compiled class file
+# ============================================================
+# safEYE Monorepo .gitignore
+# ============================================================
+
+
+# ============================================================
+# Java / Spring Boot
+# ============================================================
+
 *.class
 
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
 *.ear
-*.zip
-*.tar.gz
-*.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
-
-# ==========================================
-# safEYE 모노레포 통합 .gitignore
-# ==========================================
-
-# --- AI & VLM Server (대용량 모델 방어선) ---
-vlm-workspace/scripts/chromadb_store/
-vlm-workspace/models/
-*.gguf
-*.bin
-*.pt
-*.safetensors
-*.onnx
-__pycache__/
-*.pyc
-
-# --- Backend (Spring Boot) ---
 backend/build/
 backend/.gradle/
 backend/out/
 backend/bin/
 
-# --- Frontend (React) ---
+hs_err_pid*
+replay_pid*
+
+*.ctxt
+.mtj.tmp/
+
+
+# ============================================================
+# Frontend / Node.js
+# ============================================================
+
 frontend/node_modules/
 frontend/dist/
 frontend/build/
 
-# --- Environment & System ---
-.env
-.DS_Store
-.idea/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+# ============================================================
+# Python
+# ============================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+
+# ============================================================
+# Python Virtual Environments
+# ============================================================
+
+.venv/
+venv/
+env/
+ENV/
+
+**/.venv/
+
+.venv_clean/
+**/.venv_clean/
+
+
+# ============================================================
+# IDE
+# ============================================================
+
 .vscode/
+.idea/
+
+
+# ============================================================
+# OS Generated Files
+# ============================================================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+
+# ============================================================
+# Environment / Secrets
+# ============================================================
+
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+
+
+# ============================================================
+# Logs
+# ============================================================
+
+*.log
+logs/
+
+
+# ============================================================
+# AI / VLM Model Files
+# ============================================================
+
+vlm-workspace/models/
+
+*.gguf
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
+
+# ============================================================
+# Hugging Face / Model Cache
+# ============================================================
+
+.cache/
+huggingface/
+
+vlm-workspace/.cache/
+
+
+# ============================================================
+# ChromaDB / Vector DB
+# ============================================================
+
+# 현재 RAG Vector DB
+# regulations.jsonl을 이용해 로컬에서 재구축 가능
+vlm-workspace/data/rag/chroma_db/
+
+# 과거 / 임시 ChromaDB 경로
+vlm-workspace/scripts/chromadb_store/
+vlm-workspace/app/chroma_db/
+vlm-workspace/app/data/rag/chroma_db/
+
+
+# ============================================================
+# VLM Runtime Frames
+# ============================================================
+
+vlm-workspace/data/frames/*
+
+# 폴더 자체는 유지
+!vlm-workspace/data/frames/.gitkeep
+
+
+
+# ============================================================
+# FastAPI Runtime Uploads
+# ============================================================
+
+vlm-workspace/data/uploads/*
+
+# 폴더 자체는 유지
+!vlm-workspace/data/uploads/.gitkeep
+
+
+# ============================================================
+# Local Test Images
+# ============================================================
+
+vlm-workspace/data/test_Image/*
+
+!vlm-workspace/data/test_Image/.gitkeep
+
+
+# ============================================================
+# Pipeline Analysis Results
+# ============================================================
+
+vlm-workspace/data/results/*
+
+!vlm-workspace/data/results/.gitkeep
+
+
+# ============================================================
+# Processed Law Files
+# ============================================================
+
+# HWPX → TXT 등 중간 산출물
+vlm-workspace/data/processed/*
+
+!vlm-workspace/data/processed/.gitkeep
+
+
+# ============================================================
+# Parsed RAG Dataset
+# ============================================================
+
+# 아래 파일은 의도적으로 Git에 포함한다.
+#
+# vlm-workspace/data/parsed/regulations.jsonl
+#
+# 팀원이 GitHub에서 받아서
+# scripts/build_vector_db.py를 실행하면
+# 각자 로컬 ChromaDB를 구축할 수 있다.
+
+
+# ============================================================
+# RAG Sync Runtime State
+# ============================================================
+
+vlm-workspace/data/rag/sync/*
+
+!vlm-workspace/data/rag/sync/.gitkeep
+
+
+# ============================================================
+# VLM Runtime / API Test Files
+# ============================================================
+
+vlm-workspace/response.json
+
+
+# ============================================================
+# Backend Runtime Uploaded Images
+#
+# 실제 업로드 이미지는 Git에 올리지 않음.
+# mock 데이터는 아래 규칙에 걸리지 않으므로 유지 가능.
+# ============================================================
+
+uploads/images/*
+
+!uploads/images/.gitkeep
+
+
+# ============================================================
+# Temporary / Backup Files
+# ============================================================
+
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+
+# ============================================================
+# Archive Files
+# ============================================================
+
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z

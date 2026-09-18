@@ -1,7 +1,7 @@
 """로컬 VLM 노드 전용 설정.
 
 게이트웨이 설정과 섞이지 않도록 `LN_` 접두어만 읽음. 예를 들면
-`LN_MODEL=qwen3-vl:8b-q4_K_M`처럼 `.env.local`에 적어두면 됨.
+`LN_MODEL=qwen2.5vl:7b-q4_K_M`처럼 `.env.local`에 적어두면 됨.
 """
 
 from __future__ import annotations
@@ -9,6 +9,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+
+
+# vlm-workspace/
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+DATA_DIR = BASE_DIR / "data"
+VIDEO_DIR = DATA_DIR / "videos"
+FRAME_DIR = DATA_DIR / "frames"
+PROMPTS_DIR = BASE_DIR / "prompts"
+VIDEO_ANALYSIS_PROMPT = PROMPTS_DIR / "video_analysis.txt"
 
 
 def _load_env_file(path: str = ".env.local") -> None:
@@ -55,10 +64,10 @@ _load_env_file()
 
 @dataclass(frozen=True)
 class LocalSettings:
-    ollama_base_url: str = _env("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-    model: str = _env("MODEL", "qwen3-vl:8b-q4_K_M")
+    ollama_base_url: str = _env("OLLAMA_BASE_URL", "http://166.104.223.60:11434")
+    model: str = _env("MODEL", "qwen2.5vl:7b-q4_K_M")
     keep_alive: str = _env("KEEP_ALIVE", "30m")
-    num_ctx: int = _int_env("NUM_CTX", 4096)
+    num_ctx: int = _int_env("NUM_CTX", 8192)
     num_predict: int = _int_env("NUM_PREDICT", 400)
     temperature: float = _float_env("TEMPERATURE", 0.1)
     think: bool = _bool_env("THINK", False)
@@ -70,6 +79,8 @@ class LocalSettings:
     queue_limit: int = _int_env("QUEUE_LIMIT", 4)
     max_edge: int = _int_env("MAX_EDGE", 1024)
     max_upload_bytes: int = _int_env("MAX_UPLOAD_BYTES", 12 * 1024 * 1024)
+
+    frame_interval_sec: float = _float_env("FRAME_INTERVAL_SEC", 2.0)
 
     host: str = _env("HOST", "0.0.0.0")
     port: int = _int_env("PORT", 8100)
@@ -94,3 +105,6 @@ class LocalSettings:
 
 
 local_settings = LocalSettings()
+
+VLM_MODEL = local_settings.model
+FRAME_INTERVAL_SEC = local_settings.frame_interval_sec
