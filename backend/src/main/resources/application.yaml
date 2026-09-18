@@ -19,7 +19,7 @@ app:
   image:
     allowed-exts: jpg, jpeg, png, webp
   simulator:
-    push-rate: 6000
+    push-rate: 5000
     consume-delay: 100
 
 logging:

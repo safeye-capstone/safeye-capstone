@@ -2,6 +2,7 @@ package com.safeye.backend.domain.alert.service;
 
 import com.safeye.backend.domain.dangerevent.dto.response.DangerEventDto;
 import com.safeye.backend.domain.dangerevent.event.DangerEventCreatedEvent;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -10,43 +11,46 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+@Slf4j
 @Service
 public class AlertSseService {
 
-    private static final long TIMEOUT = 60L * 60 * 1000;
+  // TODO: 로그 추가
 
-    private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+  private static final long TIMEOUT = 60L * 60 * 1000;
 
-    public SseEmitter subscribe() {
-        SseEmitter emitter = new SseEmitter(TIMEOUT);
+  private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
-        emitters.add(emitter);
-        emitter.onCompletion(() -> emitters.remove(emitter));
-        emitter.onTimeout(() -> emitters.remove(emitter));
-        emitter.onError(e -> emitters.remove(emitter));
+  public SseEmitter subscribe() {
+    SseEmitter emitter = new SseEmitter(TIMEOUT);
 
-        try {
-            emitter.send(SseEmitter.event().name("connected").data("ok"));
-        } catch (IOException e) {
-            emitters.remove(emitter);
-        }
+    emitters.add(emitter);
+    emitter.onCompletion(() -> emitters.remove(emitter));
+    emitter.onTimeout(() -> emitters.remove(emitter));
+    emitter.onError(e -> emitters.remove(emitter));
 
-        return emitter;
+    try {
+      emitter.send(SseEmitter.event().name("connected").data("ok"));
+    } catch (IOException e) {
+      emitters.remove(emitter);
     }
 
-    public void broadcast(DangerEventDto dto) {
-        for (SseEmitter emitter : emitters) {
-            try {
-                emitter.send(SseEmitter.event().name("danger").data(dto));
-            } catch (IOException e) {
-                emitters.remove(emitter);
-            }
-        }
-    }
+    return emitter;
+  }
 
-    @EventListener
-    public void onDangerEventCreated(DangerEventCreatedEvent event) {
-        broadcast(event.dangerEvent());
+  public void broadcast(DangerEventDto dto) {
+    for (SseEmitter emitter : emitters) {
+      try {
+        emitter.send(SseEmitter.event().name("danger").data(dto));
+      } catch (IOException e) {
+        emitters.remove(emitter);
+      }
     }
+  }
+
+  @EventListener
+  public void onDangerEventCreated(DangerEventCreatedEvent event) {
+    broadcast(event.dangerEvent());
+  }
 
 } //end
