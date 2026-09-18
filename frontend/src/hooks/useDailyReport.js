@@ -40,7 +40,6 @@ function toReportError(json) {
  *   fileUrl,          // 현재 항상 null (PDF 미구현)
  *   reportType        // "DAILY"
  * }
- * TODO: 백엔드에서 대상 일자 필드 추가 예정
  *
  * @param {string} [date] - "2026-09-16" 형식. 생략하면 서버가 어제로 처리합니다.
  */

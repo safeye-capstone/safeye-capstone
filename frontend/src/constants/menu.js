@@ -82,8 +82,9 @@ export const MENU_GROUPS = [
         label: "자동 리포트",
         path: "/report",
         icon: FileBarChart2,
-        desc: "기간별 안전 통계를 자동으로 집계해 리포트로 생성합니다.",
-        ready: false,
+        // desc: "기간별 안전 통계를 자동으로 집계해 리포트로 생성합니다.",
+        desc: "매일 자정에 집계된 전날의 현장 안전 통계를 확인합니다.",
+        ready: true,
         preview: [
           "주간/월간 리포트 자동 생성",
           "위험 유형별 추이 그래프",
