@@ -1,11 +1,13 @@
 package com.safeye.backend.domain.complianceReport.dto.response;
 
 import com.safeye.backend.domain.complianceReport.entity.ComplianceReport;
+import java.time.LocalDate;
 import java.util.UUID;
 
 public record ComplianceReportDto(
     UUID id,
     String title,
+    LocalDate targetDate,
 
     Integer totalCount,
     Integer criticalCount,
@@ -18,14 +20,14 @@ public record ComplianceReportDto(
     SummaryInfo summary,
     String fileUrl,
     String reportType
-
-    // TODO: 추후 생성 일시 추가
 ) {
 
   public record SummaryInfo(
       String message, // 메시지
       Integer resolutionRate // 조치율
-  ) {}
+  ) {
+
+  }
 
   public static ComplianceReportDto from(ComplianceReport report) {
 
@@ -41,6 +43,7 @@ public record ComplianceReportDto(
     return new ComplianceReportDto(
         report.getId(),
         report.getTitle(),
+        report.getStartDate(),
         report.getTotalCount(),
         report.getCriticalCount(),
         report.getWarningCount(),
