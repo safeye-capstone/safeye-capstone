@@ -58,12 +58,12 @@ function ResultList({ results = [], loading = false, error = null }) {
             >
               <header className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
                 <span
-                  className={`text-xs font-bold px-2 y-0.5 rounded-full border border-current ${style.text}`}
+                  className={`text-xs font-bold px-2 py-0.5 rounded-full border border-current ${style.text}`}
                 >
                   {style.label}
                 </span>
                 {item.zoneName && (
-                  <span className="text-xs text-muted min-2-0 truncate">
+                  <span className="text-xs text-muted min-w-0 truncate">
                     {item.zoneName}
                   </span>
                 )}
@@ -77,7 +77,7 @@ function ResultList({ results = [], loading = false, error = null }) {
               </p>
 
               {item.violatedRegulation && (
-                <section className="mt-4 pl-3 border-1-2 border-border">
+                <section className="mt-4 pl-3 border-l-2 border-border">
                   <h3 className="text-xs font-semibold text-muted mb-1">
                     위반 규정
                   </h3>
@@ -98,14 +98,12 @@ function ResultList({ results = [], loading = false, error = null }) {
                 </section>
               )}
 
-              {item.id && (
-                <Link
-                  to={`/history/${item.id}`}
-                  className="inline-block mt-3 text-xs font-semibold text-accent no-underline"
-                >
-                  상세 보기
-                </Link>
-              )}
+              <Link
+                to={`/history/${item.id}`}
+                className="inline-block mt-3 text-xs font-semibold text-accent no-underline"
+              >
+                상세 보기
+              </Link>
             </article>
           );
         })
