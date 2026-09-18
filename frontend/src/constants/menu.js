@@ -57,7 +57,7 @@ export const MENU_GROUPS = [
         path: "/history",
         icon: History,
         desc: "지금까지 분석한 결과를 조회하고 상세 내용을 확인합니다.",
-        ready: false,
+        ready: true,
         preview: [
           "구역/기간/위험등급 필터",
           "이력 테이블 및 페이지네이션",
