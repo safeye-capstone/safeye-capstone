@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -21,7 +22,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "danger_events")
+@Table(name = "danger_events", indexes = @Index(name = "idx_danger_event_created_at", columnList = "created_at"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -51,11 +52,13 @@ public class DangerEvent extends BaseEntity {
   @Column(columnDefinition = "jsonb")
   private Map<String, Object> ragMetadata;
 
+  @Builder.Default
   @Column(nullable = false)
   private boolean isResolved = false;
 
   private Instant resolvedAt;
 
+  @Builder.Default
   @Column(nullable = false)
   private boolean isFalseAlarm = false;
 
