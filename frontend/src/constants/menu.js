@@ -11,6 +11,7 @@ import {
 
 export const MENU_GROUPS = [
   {
+    id: "main",
     label: "main",
     items: [
       {
@@ -27,7 +28,7 @@ export const MENU_GROUPS = [
         path: "/monitor",
         icon: MonitorPlay,
         desc: "엣지 카메라 스트림을 구역별로 감시하고 위험을 즉시 경보합니다.",
-        ready: false,
+        ready: true,
         preview: [
           "구역별 라이브 스트림 그리드",
           "위험 감지 시 화면 오버레이 표시",

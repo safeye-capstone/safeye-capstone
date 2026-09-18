@@ -7,7 +7,7 @@ import { useDangerAlerts } from "../../hooks/useDangerAlerts";
 
 function AppLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { alerts, connected } = useDangerAlerts();
+  const { alerts, connected, pushAlert } = useDangerAlerts();
 
   const toggleSidebar = () => {
     setIsSidebarOpen((prev) => !prev);
@@ -19,7 +19,7 @@ function AppLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar onToggleSidebar={toggleSidebar} />
         <main className="flex-1 overflow-y-auto p-8">
-          <Outlet context={{ alerts, connected }} />
+          <Outlet context={{ alerts, connected, pushAlert }} />
         </main>
       </div>
       <AlertToast alerts={alerts} />

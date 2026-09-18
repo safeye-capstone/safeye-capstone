@@ -4,6 +4,7 @@ import AnalyzeImagePage from "./pages/AnalyzeImagePage";
 import AnalyzeVideoPage from "./pages/AnalyzeVideoPage";
 import ComingSoonPage from "./pages/ComingSoonPage";
 import AppLayout from "./components/layout/AppLayout";
+import MonitorPage from "./pages/MonitorPage";
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/monitor" element={<MonitorPage />} />
           <Route path="/analyze/image" element={<AnalyzeImagePage />} />
           <Route path="/analyze/video" element={<AnalyzeVideoPage />} />
 
