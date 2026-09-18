@@ -17,9 +17,9 @@ export const CASE_LONG = {
   resolvedAt: null,
 };
 
-/** 2. 안전 판정(INFO) — DB에 저장되지 않아 id·detectedAt이 비어서 옵니다 */
+/** 2. 안전 판정(INFO) — 정책 변경으로 안전 건도 DB에 저장됩니다 */
 export const CASE_SAFE = {
-  id: null,
+  id: "7b2e5d91-8f43-4a6c-9e20-1a3b4c5d6e7f",
   isDanger: false,
   zoneName: "B동 자재창고",
   severity: "INFO",
@@ -30,7 +30,7 @@ export const CASE_SAFE = {
   actionGuide: "",
   ragMetadata: null,
   isResolved: false,
-  detectedAt: null,
+  detectedAt: "2026-09-09T03:05:12.447Z",
   resolvedAt: null,
 };
 
