@@ -84,7 +84,7 @@ public class VirtualEdgeSimulator {
     }
 
     if (currentFileIndex >= mockImages.size()) {
-      log.info("모의 이미지 전체 전송 완료 - 스케줄러 자동 중단");
+      log.info("모의 이미지 전체 전송 완료 (총 {}장) - 스케줄러 자동 중단", mockImages.size());
       this.isRunning = false;
       this.currentFileIndex = 0;
       return;
@@ -107,7 +107,7 @@ public class VirtualEdgeSimulator {
   // [Consumer] VLM 전송 및 DB 적재
   @Scheduled(fixedDelayString = "${app.simulator.consume-delay:100}") // 동기 환경: 앞선 요청이 끝난 뒤 0.1초 후 다음 큐 확인
   public void processQueueAndSendToVlm() {
-    if (!isRunning || edgeQueue.isEmpty()) {
+    if (!isRunning && edgeQueue.isEmpty()) {
       return;
     }
 
