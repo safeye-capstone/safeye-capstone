@@ -6,7 +6,7 @@ import PageHeader from "../components/layout/PageHeader";
 
 const useMock = new URLSearchParams(window.location.search).has("mock");
 
-const withClienMeta = (dto) => ({
+const withClientMeta = (dto) => ({
   ...dto,
   clientId: crypto.randomUUID(),
   receivedAt: new Date().toISOString(),
@@ -14,11 +14,11 @@ const withClienMeta = (dto) => ({
 
 function AnalyzeImagePage() {
   const [results, setResults] = useState(() =>
-    useMock ? MOCK_RESULTS.map(withClienMeta) : [],
+    useMock ? MOCK_RESULTS.map(withClientMeta) : [],
   );
 
   const handleResult = (dto) => {
-    setResults((prev) => [withClienMeta(dto), ...prev]);
+    setResults((prev) => [withClientMeta(dto), ...prev]);
   };
 
   return (

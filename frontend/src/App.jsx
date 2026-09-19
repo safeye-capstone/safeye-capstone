@@ -5,6 +5,8 @@ import AnalyzeVideoPage from "./pages/AnalyzeVideoPage";
 import ComingSoonPage from "./pages/ComingSoonPage";
 import AppLayout from "./components/layout/AppLayout";
 import MonitorPage from "./pages/MonitorPage";
+import HistoryPage from "./pages/HistoryPage";
+import ReportPage from "./pages/ReportPage";
 
 function App() {
   return (
@@ -15,13 +17,12 @@ function App() {
           <Route path="/monitor" element={<MonitorPage />} />
           <Route path="/analyze/image" element={<AnalyzeImagePage />} />
           <Route path="/analyze/video" element={<AnalyzeVideoPage />} />
+          <Route path="/history" element={<HistoryPage />} />
 
-          <Route path="/monitor" element={<ComingSoonPage />} />
-          <Route path="/history" element={<ComingSoonPage />} />
           <Route path="/history/:id" element={<ComingSoonPage />} />
           <Route path="/compliance" element={<ComingSoonPage />} />
           <Route path="/compliance/:no" element={<ComingSoonPage />} />
-          <Route path="/report" element={<ComingSoonPage />} />
+          <Route path="/report" element={<ReportPage />} />
           <Route path="/settings" element={<ComingSoonPage />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
