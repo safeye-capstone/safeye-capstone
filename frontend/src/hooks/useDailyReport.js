@@ -1,29 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
-import { API_BASE, DAILY_REPORT_ENDPOINT } from "../constants/config";
+import { getDailyReport } from "../api/reports";
 
-/** 에러 응답을 화면에서 분기하기 좋은 형태로 변환합니다. */
-function toReportError(json) {
-  const code = json?.error?.code;
-  const details = json?.error?.details;
-
-  if (code === "REPORT-001") {
+function toReportError(err) {
+  if (err.code === "REPORT-001") {
     return {
       type: "NOT_GENERATED",
       message: "아직 리포트가 생성되지 않았습니다.",
     };
   }
 
-  if (code === "REPORT-004") {
+  if (err.code === "REPORT-004") {
     return {
       type: "NOT_AVAILABLE",
       message: "당일 및 미래 날짜의 리포트는 조회할 수 없습니다.",
-      availableUntil: details?.availableUntil,
+      availableUntil: err.details?.availableUntil,
     };
   }
 
   return {
     type: "UNKNOWN",
-    message: json?.error?.message ?? "리포트를 불러오지 못했습니다.",
+    message: err.message ?? "리포트를 불러오지 못했습니다.",
   };
 }
 
@@ -52,37 +48,16 @@ export function useDailyReport(date) {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    let alive = true;
+    const controller = new AbortController();
 
-    const query = date ? `?date=${date}` : "";
-
-    fetch(`${API_BASE}${DAILY_REPORT_ENDPOINT}${query}`)
-      .then((res) => res.json().then((body) => ({ res, body })))
-      .then(({ res, body }) => {
-        if (!alive) return;
-
-        if (!res.ok || !body.success) {
-          setState({
-            report: null,
-            loading: false,
-            error: toReportError(body),
-          });
-          return;
-        }
-        setState({ report: body.data, loading: false, error: null });
-      })
-      .catch(() => {
-        if (!alive) return;
-        setState({
-          report: null,
-          loading: false,
-          error: { type: "UNKNOWN", message: "리포트를 불러오지 못했습니다." },
-        });
+    getDailyReport(date, { signal: controller.signal })
+      .then((report) => setState({ report, loading: false, error: null }))
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setState({ report: null, loading: false, error: toReportError(err) });
       });
 
-    return () => {
-      alive = false;
-    };
+    return () => controller.abort();
   }, [date, reloadKey]);
 
   const reload = useCallback(() => {

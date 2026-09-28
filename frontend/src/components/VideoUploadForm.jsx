@@ -4,7 +4,7 @@ import {
   MAX_VIDEO_SIZE_MB,
   API_BASE,
 } from "../constants/config";
-import { getApiErrorMessage } from "../utils/apiError";
+import { getApiErrorMessage } from "../api/apiError";
 import { useZones } from "../hooks/useZones";
 import { matchZone } from "../utils/zone";
 
@@ -93,7 +93,7 @@ function VideoUploadForm() {
       setUploadStatus("success");
     } catch (error) {
       console.error("전송 실패:", error);
-      setErrorMessage(error.mesage);
+      setErrorMessage(error.message);
       setUploadStatus("error");
     } finally {
       setUploading(false);

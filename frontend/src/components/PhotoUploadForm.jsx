@@ -1,13 +1,9 @@
 import { useState, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
-import {
-  UPLOAD_IMAGE_ENDPOINT,
-  MAX_IMAGE_SIZE_MB,
-  API_BASE,
-} from "../constants/config";
-import { getApiErrorMessage } from "../utils/apiError";
+import { MAX_IMAGE_SIZE_MB } from "../constants/config";
 import { matchZone } from "../utils/zone";
 import { useZones } from "../hooks/useZones";
+import { uploadImage } from "../api/upload";
 
 function PhotoUploadForm({ onResult }) {
   const { pushAlert } = useOutletContext() ?? {};
@@ -67,30 +63,12 @@ function PhotoUploadForm({ onResult }) {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    formData.append("zoneId", zoneId);
-
     setUploading(true);
     setUploadStatus(null);
+    setErrorMessage(null);
 
     try {
-      const response = await fetch(`${API_BASE}${UPLOAD_IMAGE_ENDPOINT}`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (response.status === 413) {
-        throw new Error("파일 용량이 서버 제한을 초과했습니다.");
-      }
-
-      const json = await response.json();
-
-      if (!response.ok || !json.success) {
-        throw new Error(getApiErrorMessage(json, "업로드 실패"));
-      }
-
-      const data = json.data;
+      const data = await uploadImage(selectedFile, zoneId);
       onResult?.(data);
 
       if (
