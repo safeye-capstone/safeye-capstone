@@ -37,6 +37,10 @@ function HistoryPage() {
     <div className="w-full">
       <PageHeader />
 
+      <div className="mb-4 px-3 py-2 rounded-md bg-warn-bg border border-warn text-xs text-warn">
+        현재 화면은 샘플 데이터입니다. 조회 API 연동 후 실제 이력이 표시됩니다.
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {SEVERITY_ORDER.map((severity) => {
           const active = selected.includes(severity);
