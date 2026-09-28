@@ -1,10 +1,6 @@
 import { useState, useRef } from "react";
-import {
-  UPLOAD_VIDEO_ENDPOINT,
-  MAX_VIDEO_SIZE_MB,
-  API_BASE,
-} from "../constants/config";
-import { getApiErrorMessage } from "../api/apiError";
+import { MAX_VIDEO_SIZE_MB } from "../constants/config";
+import { uploadVideo } from "../api/upload";
 import { useZones } from "../hooks/useZones";
 import { matchZone } from "../utils/zone";
 
@@ -65,31 +61,12 @@ function VideoUploadForm() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    formData.append("zoneId", zoneId);
-
     setUploading(true);
     setUploadStatus(null);
+    setErrorMessage(null);
 
     try {
-      const response = await fetch(`${API_BASE}${UPLOAD_VIDEO_ENDPOINT}`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (response.status === 413) {
-        throw new Error("파일 용량이 서버 제한을 초과했습니다.");
-      }
-
-      const json = await response.json();
-
-      if (!response.ok || !json.success) {
-        throw new Error(getApiErrorMessage(json, "업로드 실패"));
-      }
-
-      const data = json.data;
-      console.log("분석 결과:", data);
+      await uploadVideo(selectedFile, zoneId);
       setUploadStatus("success");
     } catch (error) {
       console.error("전송 실패:", error);
