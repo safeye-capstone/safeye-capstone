@@ -1,6 +1,6 @@
 import { useState } from "react";
-import PhotoUploadForm from "../components/PhotoUploadForm";
-import ResultList from "../components/ResultList";
+import PhotoUploadForm from "../components/upload/PhotoUploadForm";
+import ResultList from "../components/upload/ResultList";
 import { MOCK_RESULTS } from "../fixtures/mockResults";
 import PageHeader from "../components/layout/PageHeader";
 

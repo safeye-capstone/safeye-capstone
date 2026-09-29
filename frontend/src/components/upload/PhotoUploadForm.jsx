@@ -1,14 +1,16 @@
 import { useState, useRef } from "react";
-import { MAX_VIDEO_SIZE_MB } from "../constants/config";
-import { uploadVideo } from "../api/upload";
-import { useZones } from "../hooks/useZones";
-import { matchZone } from "../utils/zone";
+import { useOutletContext } from "react-router-dom";
+import { MAX_IMAGE_SIZE_MB } from "../../constants/config";
+import { matchZone } from "../../utils/zone";
+import { useZones } from "../../hooks/useZones";
+import { uploadImage } from "../../api/upload";
 
-function VideoUploadForm() {
+function PhotoUploadForm({ onResult }) {
+  const { pushAlert } = useOutletContext() ?? {};
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState(null); // "success" | "error" | null
   const [errorMessage, setErrorMessage] = useState(null);
   const [fileError, setFileError] = useState(null);
   const { zones } = useZones();
@@ -31,9 +33,9 @@ function VideoUploadForm() {
 
     const sizeMB = file.size / (1024 * 1024);
 
-    if (sizeMB > MAX_VIDEO_SIZE_MB) {
+    if (sizeMB > MAX_IMAGE_SIZE_MB) {
       setFileError(
-        `파일이 너무 큽니다 (${sizeMB.toFixed(1)}MB). ${MAX_VIDEO_SIZE_MB}MB 이하만 가능합니다.`,
+        `파일이 너무 큽니다 (${sizeMB.toFixed(1)}MB). ${MAX_IMAGE_SIZE_MB}MB 이하만 가능합니다.`,
       );
       setSelectedFile(null);
       setPreviewUrl(null);
@@ -66,7 +68,16 @@ function VideoUploadForm() {
     setErrorMessage(null);
 
     try {
-      await uploadVideo(selectedFile, zoneId);
+      const data = await uploadImage(selectedFile, zoneId);
+      onResult?.(data);
+
+      if (
+        pushAlert &&
+        (data.severity === "CRITICAL" || data.severity === "WARNING")
+      ) {
+        pushAlert(data);
+      }
+
       setUploadStatus("success");
     } catch (error) {
       console.error("전송 실패:", error);
@@ -82,14 +93,11 @@ function VideoUploadForm() {
       onSubmit={handleSubmit}
       className="bg-white border border-border rounded-[14px] p-6 max-w-[420px]"
     >
-      <h2 className="text-[14.5px] font-bold mb-4">영상 업로드</h2>
-      <p className="text-xs text-warn font-semibold mb-3">
-        영상 분석은 현재 준비 중입니다. 업로드는 가능하지만 분석 결과가
-        제공되지는 않습니다.
-      </p>
+      <h2 className="text-[14.5px] font-bold mb-4">이미지 업로드</h2>
+
       <input
         type="file"
-        accept=".mp4, .avi, .mov"
+        accept=".jpg, .jpeg, .png, .webp"
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
@@ -97,29 +105,28 @@ function VideoUploadForm() {
 
       <div
         onClick={() => fileInputRef.current.click()}
-        className={`border-2 border-dashed rounded-[10px] p-8 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors ${fileError ? "border-danger bg-danger-bg" : "border-border hover:border-accent hover:bg-accent-bg"}`}
+        className="border-2 border-dashed border-border rounded-[10px] p-8 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-accent hover:bg-accent-bg transition-colors"
       >
         {previewUrl ? (
-          <video
+          <img
             src={previewUrl}
-            controls
-            onClick={(e) => e.stopPropagation()}
-            className="max-w-full max-h-[220px] rounded-[8px]"
+            alt="미리보기"
+            className="max-w-full max-h-[220px] block rounded-[8px]"
           />
         ) : (
           <>
             <span className="text-sm font-semibold text-ink">
-              클릭하여 영상 선택
+              클릭하여 이미지 선택
             </span>
             <span className="text-xs text-muted">
-              최대 {MAX_VIDEO_SIZE_MB}MB까지 가능합니다.
+              JPG, PNG, WEBP • 최대 {MAX_IMAGE_SIZE_MB}MB
             </span>
           </>
         )}
       </div>
 
       {selectedFile && (
-        <p className="text-sm text-muted mt-2">
+        <p className="text-sm text-muted mb-2">
           선택된 파일: {selectedFile.name} (
           {(selectedFile.size / (1024 * 1024)).toFixed(1)}MB)
         </p>
@@ -141,7 +148,7 @@ function VideoUploadForm() {
             <option value="">구역 선택</option>
             {zones.map((z) => (
               <option key={z.id} value={z.id}>
-                {z.zoneName}{" "}
+                {z.zoneName}
               </option>
             ))}
           </select>
@@ -157,13 +164,13 @@ function VideoUploadForm() {
       <button
         type="submit"
         disabled={uploading || !selectedFile}
-        className="w-full mt-4 py-3.5 rounded-[10px] bg-accent text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowd"
+        className="w-full mt-4 py-3.5 rounded-[10px] bg-accent text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {uploading ? "업로드 중..." : "제출"}
       </button>
 
       {uploadStatus === "success" && (
-        <p className="text-safe text-sm font-semibold mt-2">업로드 성공!</p>
+        <p className="text-safe text-sm font-semibold mt-2">업로드 성공</p>
       )}
       {uploadStatus === "error" && (
         <p className="text-danger text-sm font-semibold mt-2">
@@ -174,4 +181,4 @@ function VideoUploadForm() {
   );
 }
 
-export default VideoUploadForm;
+export default PhotoUploadForm;
