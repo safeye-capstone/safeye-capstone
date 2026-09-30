@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createAlertStream } from "../api/alerts";
+import { createId } from "../utils/id";
 
 const MAX_ALERTS = 100;
 
@@ -11,9 +12,8 @@ export function useDangerAlerts() {
   const addAlert = useCallback((event) => {
     if (!event) return;
 
-    const id =
-      event.id ?? `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    if (seenIdsRef.current.has(id)) return;
+    const id = event.id ?? createId("manual");
+
     seenIdsRef.current.add(id);
 
     setAlerts((prev) => [{ ...event, id }, ...prev].slice(0, MAX_ALERTS));

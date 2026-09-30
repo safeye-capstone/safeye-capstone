@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { getSeverityBadge, getSeverityTone } from "../constants/severity";
+import {
+  getSeverityBadge,
+  getSeverityTone,
+  isAlertSeverity,
+} from "../constants/severity";
 
 const TOAST_DURATION_MS = 8000;
 
@@ -37,7 +41,9 @@ function AlertToast({ alerts }) {
   }, []);
 
   useEffect(() => {
-    const fresh = alerts.filter((a) => a.id && !seenIds.current.has(a.id));
+    const fresh = alerts.filter(
+      (a) => a.id && isAlertSeverity(a.severity) && !seenIds.current.has(a.id),
+    );
     if (fresh.length === 0) return;
 
     fresh.forEach((a) => seenIds.current.add(a.id));
