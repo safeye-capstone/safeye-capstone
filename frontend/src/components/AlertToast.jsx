@@ -1,37 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { getSeverityBadge, getSeverityTone } from "../constants/severity";
 
-const SEVERITY_LABEL = {
-  CRITICAL: "심각",
-  CRITICAL_PINCH: "심각",
-  WARNING: "주의",
-};
+const TOAST_DURATION_MS = 8000;
 
 function ToastItem({ alert, onDismiss }) {
   useEffect(() => {
-    const timer = setTimeout(() => onDismiss(alert.id), 8000);
+    const timer = setTimeout(() => onDismiss(alert.id), TOAST_DURATION_MS);
     return () => clearTimeout(timer);
   }, [alert.id, onDismiss]);
 
-  const isCritical = alert.severity.startsWith("CRITICAL");
+  const tone = getSeverityTone(alert.severity);
+  const { label } = getSeverityBadge(alert.severity);
 
   return (
     <div
       onClick={() => onDismiss(alert.id)}
-      className={`w-[340px] rounded-[12px] border p-4 shadow-lg cursor-pointer bg-white ${
-        isCritical ? "border-danger" : "border-warn"
-      }`}
+      className={`w-[340px] rounded-[12px] border p-4 shadow-lg cursor-pointer bg-white ${tone.border}`}
     >
       <div className="flex items-center gap-2 mb-1.5">
-        <AlertTriangle
-          size={16}
-          className={isCritical ? "text-danger" : "text-warn"}
-        />
-        <span
-          className={`text-sm font-bold ${isCritical ? "text-danger" : "text-warn"}`}
-        >
-          {SEVERITY_LABEL[alert.severity] ?? alert.severity}
-        </span>
+        <AlertTriangle size={16} className={tone.text} />
+        <span className={`text-sm font-bold ${tone.text}`}>{label}</span>
         <span className="text-xs text-muted">{alert.zoneName}</span>
       </div>
       <p className="text-sm text-ink leading-relaxed">{alert.vlmDescription}</p>

@@ -1,29 +1,7 @@
 import { Link } from "react-router-dom";
 import { formatDate } from "../../utils/formatDate";
-
-const SEVERITY_STYLE = {
-  CRITICAL: {
-    label: "심각",
-    box: "border-danger bg-danger-bg",
-    text: "text-danger",
-  },
-  WARNING: {
-    label: "주의",
-    box: "border-warn bg-warn-bg",
-    text: "text-warn",
-  },
-  INFO: {
-    label: "안전",
-    box: "border-border bg-white",
-    text: "text-safe",
-  },
-};
-
-const UNKNOWN_STYLE = {
-  label: "확인 필요",
-  box: "border-border bg-white",
-  text: "text-muted",
-};
+import { getSeverityTone } from "../../constants/severity";
+import SeverityBadge from "../common/SeverityBadge";
 
 function ResultList({ results = [], loading = false, error = null }) {
   if (loading) {
@@ -47,21 +25,18 @@ function ResultList({ results = [], loading = false, error = null }) {
         </p>
       ) : (
         results.map((item) => {
-          const style = SEVERITY_STYLE[item.severity] ?? UNKNOWN_STYLE;
+          const tone = getSeverityTone(item.severity);
           const detectedLabel =
             formatDate(item.detectedAt) ?? formatDate(item.receivedAt);
 
           return (
             <article
               key={item.clientId ?? item.id}
-              className={`border rounded-lg p-4 mb-3 ${style.box}`}
+              className={`border rounded-lg p-4 mb-3 ${tone.box}`}
             >
               <header className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
-                <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded-full border border-current ${style.text}`}
-                >
-                  {style.label}
-                </span>
+                <SeverityBadge severity={item.severity} />
+
                 {item.zoneName && (
                   <span className="text-xs text-muted min-w-0 truncate">
                     {item.zoneName}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";
-import SeverityBadge from "../components/SeverityBadge";
+import SeverityBadge from "../components/common/SeverityBadge";
 import { SEVERITY_BADGE, SEVERITY_ORDER } from "../constants/severity";
 import { MOCK_HISTORY } from "../fixtures/mockHistory";
 import { formatDate } from "../utils/formatDate";

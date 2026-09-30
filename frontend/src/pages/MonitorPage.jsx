@@ -2,27 +2,8 @@ import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Play, Square, Radio, AlertTriangle } from "lucide-react";
 import { startVirtualEdge, stopVirtualEdge } from "../api/virtualEdge";
-
-const SEVERITY_STYLE = {
-  CRITICAL: { label: "위험", cls: "border-red-200 bg-red-50 text-red-700" },
-  WARNING: {
-    label: "주의",
-    cls: "border-amber-200 bg-amber-50 text-amber-700",
-  },
-  INFO: {
-    label: "안전",
-    cls: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  },
-};
-
-function formatTime(instant) {
-  if (!instant) return "-";
-  return new Date(instant).toLocaleTimeString("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
+import { formatTime } from "../utils/formatDate";
+import SeverityBadge from "../components/common/SeverityBadge";
 
 export default function MonitorPage() {
   const { alerts = [], connected = false } = useOutletContext() ?? {};
@@ -115,41 +96,33 @@ export default function MonitorPage() {
           </p>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {alerts.map((alert, idx) => {
-              const style =
-                SEVERITY_STYLE[alert.severity] ?? SEVERITY_STYLE.INFO;
-              return (
-                <li key={alert.id ?? idx} className="flex gap-4 px-5 py-4">
-                  <AlertTriangle
-                    size={18}
-                    className="mt-0.5 shrink-0 text-gray-400"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded border px-2 py-0.5 text-xs font-semibold ${style.cls}`}
-                      >
-                        {style.label}
-                      </span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {alert.zoneName ?? "구역 미상"}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {formatTime(alert.detectedAt)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      {alert.vlmDescription}
-                    </p>
-                    {alert.actionGuide && (
-                      <p className="mt-1 text-xs text-gray-500">
-                        조치: {alert.actionGuide}
-                      </p>
-                    )}
+            {alerts.map((alert) => (
+              <li key={alert.id} className="flex gap-4 px-5 py-4">
+                <AlertTriangle
+                  size={18}
+                  className="mt-0.5 shrink-0 text-gray-400"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <SeverityBadge severity={alert.severity} />
+                    <span className="text-sm font-medium text-gray-900">
+                      {alert.zoneName ?? "구역 미상"}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {formatTime(alert.detectedAt)}
+                    </span>
                   </div>
-                </li>
-              );
-            })}
+                  <p className="text-sm text-gray-600">
+                    {alert.vlmDescription}
+                  </p>
+                  {alert.actionGuide && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      조치: {alert.actionGuide}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
           </ul>
         )}
       </div>

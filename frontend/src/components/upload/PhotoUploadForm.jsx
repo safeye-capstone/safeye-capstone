@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import FileUploadForm from "./FileUploadForm";
 import { uploadImage } from "../../api/upload";
 import { MAX_IMAGE_SIZE_MB } from "../../constants/config";
+import { isAlertSeverity } from "../../constants/severity";
 
 function PhotoUploadForm({ onResult }) {
   const { pushAlert } = useOutletContext() ?? {};
@@ -10,7 +11,7 @@ function PhotoUploadForm({ onResult }) {
   const handleSuccess = (data) => {
     onResult?.(data);
 
-    if (data.severity === "CRITICAL" || data.severity === "WARNING") {
+    if (isAlertSeverity(data.severity)) {
       pushAlert?.(data);
     }
   };
