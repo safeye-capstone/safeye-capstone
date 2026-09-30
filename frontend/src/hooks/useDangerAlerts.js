@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { API_BASE } from "../constants/config";
+import { createAlertStream } from "../api/alerts";
+
+const MAX_ALERTS = 100;
 
 export function useDangerAlerts() {
   const [alerts, setAlerts] = useState([]);
@@ -9,33 +11,34 @@ export function useDangerAlerts() {
   const addAlert = useCallback((event) => {
     if (!event) return;
 
-    const key = event.id ?? `manual-${Date.now()}`;
-    if (seenIdsRef.current.has(key)) return;
-    seenIdsRef.current.add(key);
+    const id =
+      event.id ?? `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    if (seenIdsRef.current.has(id)) return;
+    seenIdsRef.current.add(id);
 
-    setAlerts((prev) => [{ ...event, id: key }, ...prev]);
+    setAlerts((prev) => [{ ...event, id }, ...prev].slice(0, MAX_ALERTS));
   }, []);
 
   useEffect(() => {
-    const url = `${API_BASE}/api/alerts/subscribe`;
-    const source = new EventSource(url);
+    const source = createAlertStream();
 
     source.addEventListener("connected", () => {
       setConnected(true);
     });
 
     source.addEventListener("danger", (e) => {
-      console.log("SSE 수신:", e.data);
-      addAlert(JSON.parse(e.data));
+      try {
+        addAlert(JSON.parse(e.data));
+      } catch (err) {
+        console.error("SSE 데이터 파싱 실패:", e.data, err);
+      }
     });
 
     source.onerror = () => {
       setConnected(false);
     };
 
-    return () => {
-      source.close();
-    };
+    return () => source.close();
   }, [addAlert]);
 
   return { alerts, connected, pushAlert: addAlert };
