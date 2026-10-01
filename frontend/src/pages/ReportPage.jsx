@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import PageHeader from "../components/layout/PageHeader";
-import SeverityBar from "../components/SeverityBar";
+import SeverityBar from "../components/report/SeverityBar";
 import { useDailyReport } from "../hooks/useDailyReport";
 import { addDays, formatReportDate, getYesterday } from "../utils/date";
 
