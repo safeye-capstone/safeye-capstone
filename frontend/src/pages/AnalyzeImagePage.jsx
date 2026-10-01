@@ -17,13 +17,15 @@ function AnalyzeImagePage() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 items-start">
+    <>
       <PageHeader />
-      <PhotoUploadForm onResult={handleResult} />
-      <div className="flex-1 min-w-0 w-full">
-        <ResultList results={results} />
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <PhotoUploadForm onResult={handleResult} />
+        <div className="flex-1 min-w-0 w-full">
+          <ResultList results={results} />
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

@@ -20,7 +20,7 @@ function VideoUploadForm({ onResult }) {
       title="영상 업로드"
       accept=".mp4, .avi, .mov"
       maxSizeMB={MAX_VIDEO_SIZE_MB}
-      hint={`MP4, AVI, MOV / 최대 ${MAX_VIDEO_SIZE_MB}MB`}
+      hint={`MP4, AVI, MOV • 최대 ${MAX_VIDEO_SIZE_MB}MB`}
       upload={uploadVideo}
       onSuccess={handleSuccess}
       renderPreview={(url) => (
