@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { formatDate } from "../../utils/date";
 import { getSeverityTone } from "../../constants/severity";
 import SeverityBadge from "../common/SeverityBadge";
+import { parseRegulations } from "../../utils/regulation";
 
 function ResultList({
   results = [],
@@ -31,6 +32,7 @@ function ResultList({
           const tone = getSeverityTone(item.severity);
           const detectedLabel =
             formatDate(item.detectedAt) ?? formatDate(item.receivedAt);
+          const regulations = parseRegulations(item.violatedRegulation);
 
           return (
             <article
@@ -54,14 +56,21 @@ function ResultList({
                 {item.vlmDescription || "설명을 생성하지 못했습니다."}
               </p>
 
-              {item.violatedRegulation && (
-                <section className="mt-4 pl-3 border-l-2 border-border">
+              {regulations.length > 0 && (
+                <section className="mt-4 pl-3 border-1-2 border-border">
                   <h3 className="text-xs font-semibold text-muted mb-1">
                     위반 규정
                   </h3>
-                  <p className="text-sm text-ink whitespace-pre-wrap break-keep">
-                    {item.violatedRegulation}
-                  </p>
+                  {regulations.map(({ law, articles }) => (
+                    <div key={law} className="mb-1.5 last:mb-0">
+                      {law && <p className="text-xs text-muted">{law}</p>}
+                      <ul className="text-sm text-ink break-keep">
+                        {articles.map((article) => (
+                          <li key={article}>{article}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </section>
               )}
 

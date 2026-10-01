@@ -27,7 +27,9 @@ function ToastItem({ alert, onDismiss }) {
         <span className={`text-sm font-bold ${tone.text}`}>{label}</span>
         <span className="text-xs text-muted">{alert.zoneName}</span>
       </div>
-      <p className="text-sm text-ink leading-relaxed">{alert.vlmDescription}</p>
+      <p className="text-sm text-ink leading-relaxed line-clamp-3">
+        {alert.vlmDescription}
+      </p>
     </div>
   );
 }

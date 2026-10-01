@@ -23,6 +23,7 @@ function PhotoUploadForm({ onResult }) {
       maxSizeMB={MAX_IMAGE_SIZE_MB}
       hint={`JPG, PNG, WEBP • 최대 ${MAX_IMAGE_SIZE_MB}MB`}
       upload={uploadImage}
+      pendingHint="AI가 사진을 분석하고 있습니다. (약 10초 소요)"
       onSuccess={handleSuccess}
       renderPreview={(url) => (
         <img

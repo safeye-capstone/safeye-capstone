@@ -7,6 +7,7 @@ function FileUploadForm({
   maxSizeMB,
   hint,
   notice,
+  pendingHint,
   upload,
   onSuccess,
   renderPreview,
@@ -138,8 +139,12 @@ function FileUploadForm({
         disabled={uploading || !form.file}
         className="w-full mt-4 py-3.5 rounded-[10px] bg-accent text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {uploading ? "업로드 중..." : "제출"}
+        {uploading ? "분석 중..." : "제출"}
       </button>
+
+      {uploading && pendingHint && (
+        <p className="text-xs text-muted mt-2">{pendingHint}</p>
+      )}
 
       {form.status === "success" && (
         <p className="text-safe text-sm font-semibold mt-2">업로드 성공</p>
