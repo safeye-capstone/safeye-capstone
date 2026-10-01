@@ -3,7 +3,12 @@ import { formatDate } from "../../utils/formatDate";
 import { getSeverityTone } from "../../constants/severity";
 import SeverityBadge from "../common/SeverityBadge";
 
-function ResultList({ results = [], loading = false, error = null }) {
+function ResultList({
+  results = [],
+  loading = false,
+  error = null,
+  emptyMessage = "사진을 올리면 분석 결과가 여기에 표시됩니다.",
+}) {
   if (loading) {
     return <div className="p-4 text-center text-muted">분석하는 중...</div>;
   }
@@ -20,9 +25,7 @@ function ResultList({ results = [], loading = false, error = null }) {
     <div>
       <h2 className="text-[14.5px] font-bold mb-4">판단 결과</h2>
       {results.length === 0 ? (
-        <p className="text-muted text-sm">
-          사진을 올리면 분석 결과가 여기에 표시됩니다.
-        </p>
+        <p className="text-muted text-sm">{emptyMessage}</p>
       ) : (
         results.map((item) => {
           const tone = getSeverityTone(item.severity);

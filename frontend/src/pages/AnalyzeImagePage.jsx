@@ -3,15 +3,9 @@ import PhotoUploadForm from "../components/upload/PhotoUploadForm";
 import ResultList from "../components/upload/ResultList";
 import { MOCK_RESULTS } from "../fixtures/mockResults";
 import PageHeader from "../components/layout/PageHeader";
-import { createId } from "../utils/id";
+import { withClientMeta } from "../utils/result";
 
 const useMock = new URLSearchParams(window.location.search).has("mock");
-
-const withClientMeta = (dto) => ({
-  ...dto,
-  clientId: createId("client"),
-  receivedAt: new Date().toISOString(),
-});
 
 function AnalyzeImagePage() {
   const [results, setResults] = useState(() =>
