@@ -29,7 +29,10 @@ function ReportPage() {
   const maxDate = getYesterday();
   const shown = date ?? report?.targetDate ?? maxDate;
 
-  const stale = Boolean(report && report.targetDate !== shown);
+  const stale = Boolean(
+    report &&
+    (date ? report.targetDate !== date : report.targetDate !== maxDate),
+  );
   const showLoading = loading || stale;
 
   const atLatest = shown >= maxDate;
