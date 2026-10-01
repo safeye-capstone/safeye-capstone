@@ -1,46 +1,35 @@
-import { useState, useEffect } from "react";
-import { API_BASE } from "../../constants/config";
+import { normalizeSeverity } from "../../constants/severity";
 
-function StatsSummary() {
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+function start0fWeek(date = new Date()) {
+  const d = new Date(date);
+  const daysSinceMonday = (d.getDay() + 6) % 7;
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - daysSinceMonday);
+  return d;
+}
 
-  useEffect(() => {
-    const fetchResults = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/api/results`);
-        const json = await response.json();
-        setResults(json.data ?? []);
-      } catch (err) {
-        setError("통계를 불러오는 데 실패했습니다.");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+function StatsSummary({ items = [], liveAlertCount = 0 }) {
+  const weekStart = start0fWeek();
 
-    fetchResults();
-  }, []);
-
-  if (loading) return <div className="p-4 text-muted">통계 불러오는 중...</div>;
-  if (error)
-    return <div className="p-4 text-danger font-semibold">{error}</div>;
-
-  const total = results.length;
-  const dangerCount = results.filter((item) => item.isDanger).length;
-  const thisWeekCount = total;
+  const total = items.length;
+  const criticalCount = items.filter(
+    (item) => normalizeSeverity(item.severity) === "CRITICAL",
+  ).length;
+  const thisWeekCount = items.filter(
+    (item) => item.detectedAt && new Date(item.detectedAt) >= weekStart,
+  ).length;
 
   return (
-    <div className="grid grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatCard label="총 분석 건수" value={total} unit="건" />
       <StatCard
-        label="고위험 발견"
-        value={dangerCount}
+        label="심각 발견"
+        value={criticalCount}
         unit="건"
         color="text-danger"
       />
       <StatCard label="이번 주 분석" value={thisWeekCount} unit="건" />
+      <StatCard label="실시간 수신 경보" value={liveAlertCount} unit="건" />
     </div>
   );
 }

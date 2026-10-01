@@ -2,9 +2,14 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";
 import SeverityBadge from "../components/common/SeverityBadge";
-import { SEVERITY_BADGE, SEVERITY_ORDER } from "../constants/severity";
+import {
+  SEVERITY_BADGE,
+  SEVERITY_ORDER,
+  normalizeSeverity,
+} from "../constants/severity";
 import { MOCK_HISTORY } from "../fixtures/mockHistory";
 import { formatDate } from "../utils/formatDate";
+import SampleDataNotice from "../components/common/SampleDataNotice";
 
 const PAGE_SIZE = 15;
 
@@ -25,7 +30,9 @@ function HistoryPage() {
     () =>
       selected.length === 0
         ? MOCK_HISTORY
-        : MOCK_HISTORY.filter((item) => selected.includes(item.severity)),
+        : MOCK_HISTORY.filter((item) =>
+            selected.includes(normalizeSeverity(item.severity)),
+          ),
     [selected],
   );
 
@@ -37,9 +44,9 @@ function HistoryPage() {
     <div className="w-full">
       <PageHeader />
 
-      <div className="mb-4 px-3 py-2 rounded-md bg-warn-bg border border-warn text-xs text-warn">
+      <SampleDataNotice>
         현재 화면은 샘플 데이터입니다. 조회 API 연동 후 실제 이력이 표시됩니다.
-      </div>
+      </SampleDataNotice>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {SEVERITY_ORDER.map((severity) => {
