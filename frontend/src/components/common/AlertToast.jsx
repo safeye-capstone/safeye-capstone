@@ -4,7 +4,7 @@ import {
   getSeverityBadge,
   getSeverityTone,
   isAlertSeverity,
-} from "../constants/severity";
+} from "../../constants/severity";
 
 const TOAST_DURATION_MS = 8000;
 

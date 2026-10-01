@@ -1,4 +1,4 @@
-import StatsSummary from "../components/StatsSummary";
+import StatsSummary from "../components/dashboard/StatsSummary";
 import ResultList from "../components/upload/ResultList";
 import { useOutletContext } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";

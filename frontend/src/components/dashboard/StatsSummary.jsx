@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { API_BASE } from "../constants/config";
+import { API_BASE } from "../../constants/config";
 
 function StatsSummary() {
   const [results, setResults] = useState([]);
