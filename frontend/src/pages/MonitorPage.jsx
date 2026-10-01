@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Play, Square, Radio, AlertTriangle } from "lucide-react";
 import { startVirtualEdge, stopVirtualEdge } from "../api/virtualEdge";
-import { formatTime } from "../utils/formatDate";
+import { formatTime } from "../utils/date";
 import { getSeverityTone } from "../constants/severity";
 import SeverityBadge from "../components/common/SeverityBadge";
 import PageHeader from "../components/layout/PageHeader";

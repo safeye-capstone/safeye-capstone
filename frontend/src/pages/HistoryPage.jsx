@@ -8,7 +8,7 @@ import {
   normalizeSeverity,
 } from "../constants/severity";
 import { MOCK_HISTORY } from "../fixtures/mockHistory";
-import { formatDate } from "../utils/formatDate";
+import { formatDate } from "../utils/date";
 import SampleDataNotice from "../components/common/SampleDataNotice";
 
 const PAGE_SIZE = 15;

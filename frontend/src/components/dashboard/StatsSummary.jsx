@@ -1,12 +1,5 @@
 import { normalizeSeverity } from "../../constants/severity";
-
-function start0fWeek(date = new Date()) {
-  const d = new Date(date);
-  const daysSinceMonday = (d.getDay() + 6) % 7;
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - daysSinceMonday);
-  return d;
-}
+import { start0fWeek } from "../../utils/date";
 
 function StatsSummary({ items = [], liveAlertCount = 0 }) {
   const weekStart = start0fWeek();

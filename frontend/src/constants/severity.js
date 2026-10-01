@@ -25,16 +25,19 @@ export const SEVERITY_TONE = {
     text: "text-danger",
     border: "border-danger",
     box: "border-danger bg-danger-bg",
+    solid: "bg-danger",
   },
   WARNING: {
     text: "text-warn",
     border: "border-warn",
     box: "border-warn bg-warn-bg",
+    solid: "bg-warn",
   },
   INFO: {
     text: "text-safe",
     border: "border-border",
     box: "border-border bg-white",
+    solid: "bg-safe",
   },
 };
 
@@ -42,6 +45,7 @@ const UNKNOWN_TONE = {
   text: "text-muted",
   border: "border-border",
   box: "border-border bg-white",
+  solid: "bg-muted",
 };
 
 export function normalizeSeverity(severity) {

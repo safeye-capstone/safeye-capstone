@@ -1,4 +1,3 @@
-/** Date 또는 "YYYY-MM-DD" 문자열을 "YYYY-MM-DD"로 변환합니다. */
 export function toDateString(value) {
   if (typeof value === "string") return value;
   const y = value.getFullYear();
@@ -7,14 +6,12 @@ export function toDateString(value) {
   return `${y}-${m}-${d}`;
 }
 
-/** "YYYY-MM-DD"에 일수를 더합니다. */
 export function addDays(dateString, days) {
   const [y, m, d] = dateString.split("-").map(Number);
   const date = new Date(y, m - 1, d + days);
   return toDateString(date);
 }
 
-/** "2026-09-18" → "2026년 9월 18일 (금)" */
 export function formatReportDate(dateString) {
   const [y, m, d] = dateString.split("-").map(Number);
   const date = new Date(y, m - 1, d);
@@ -22,9 +19,45 @@ export function formatReportDate(dateString) {
   return `${y}년 ${m}월 ${d}일 (${day})`;
 }
 
-/** 조회 가능한 마지막 날짜(어제)를 "YYYY-MM-DD"로 반환합니다. */
 export function getYesterday() {
   const now = new Date();
   now.setDate(now.getDate() - 1);
   return toDateString(now);
+}
+
+export function start0fWeek(date = new Date()) {
+  const d = new Date(date);
+  const daySinceMonday = (d.getDay() + 6) % 7;
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - daySinceMonday);
+  return d;
+}
+
+function toValidDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function formatDate(value) {
+  const date = toValidDate(value);
+  if (!date) return null;
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+export function formatTime(value) {
+  const date = toValidDate(value);
+  if (!date) return "-";
+
+  return date.toLocaleDateString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }

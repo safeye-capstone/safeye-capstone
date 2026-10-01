@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { formatDate } from "../../utils/formatDate";
+import { formatDate } from "../../utils/date";
 import { getSeverityTone } from "../../constants/severity";
 import SeverityBadge from "../common/SeverityBadge";
 
