@@ -17,6 +17,7 @@ export const DEV_ZONE_ID = DEV_ZONES[0].id;
 
 export const UPLOAD_IMAGE_ENDPOINT = "/api/upload/file";
 export const UPLOAD_VIDEO_ENDPOINT = "/api/upload/file";
+export const DAILY_REPORT_ENDPOINT = "/api/reports/daily";
 
 export const MAX_IMAGE_SIZE_MB = 10;
 export const MAX_VIDEO_SIZE_MB = 50;
