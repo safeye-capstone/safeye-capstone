@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { Play, Square, Radio, AlertTriangle } from "lucide-react";
 import { startVirtualEdge, stopVirtualEdge } from "../api/virtualEdge";
 import { formatTime } from "../utils/formatDate";
+import { getSeverityTone } from "../constants/severity";
 import SeverityBadge from "../components/common/SeverityBadge";
 
 export default function MonitorPage() {
@@ -34,18 +35,16 @@ export default function MonitorPage() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-muted">
         가상 엣지 디바이스를 구동하여 현장 영상 수집 상황을 재현하고, 위험
         판정을 실시간으로 수신합니다.
       </p>
 
-      <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-5">
+      <div className="flex items-center justify-between rounded-[14px] border border-border bg-white p-5">
         <div className="flex items-center gap-3">
           <span
             className={`flex h-10 w-10 items-center justify-center rounded-full ${
-              running
-                ? "bg-emerald-50 text-emerald-600"
-                : "bg-gray-100 text-gray-400"
+              running ? "bg-safe-bg text-safe" : "bg-border text-muted"
             }`}
           >
             <Radio
@@ -54,10 +53,10 @@ export default function MonitorPage() {
             />
           </span>
           <div>
-            <p className="font-semibold text-gray-900">
+            <p className="font-semibold text-ink">
               {running ? "가상 엣지 구동 중" : "가상 엣지 정지됨"}
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted">
               {status ?? "대기 중"} / 실시간 알림{" "}
               {connected ? "연결됨" : "끊김"} / 수신 {alerts.length}건
             </p>
@@ -68,10 +67,8 @@ export default function MonitorPage() {
           type="button"
           onClick={handleToggle}
           disabled={pending}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-50 ${
-            running
-              ? "bg-gray-800 hover:bg-gray-900"
-              : "bg-blue-600 hover:bg-blue-700"
+          className={`flex items-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 ${
+            running ? "bg-ink hover:bg-ink/85" : "bg-accent hover:bg-accent/90"
           }`}
         >
           {running ? <Square size={16} /> : <Play size={16} />}
@@ -80,43 +77,41 @@ export default function MonitorPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-[10px] border border-border bg-danger-bg px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="border-b border-gray-100 px-5 py-4">
-          <h2 className="font-semibold text-gray-900">실시간 경보 로그</h2>
+      <div className="rounded-[14px] border border-border bg-white">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-[14.5px] font-bold">실시간 경보 로그</h2>
         </div>
 
         {alerts.length === 0 ? (
-          <p className="px-5 py-12 text-center text-sm text-gray-400">
+          <p className="px-5 py-12 text-center text-sm text-muted">
             아직 수신된 경보가 없습니다.
           </p>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-border">
             {alerts.map((alert) => (
               <li key={alert.id} className="flex gap-4 px-5 py-4">
                 <AlertTriangle
                   size={18}
-                  className="mt-0.5 shrink-0 text-gray-400"
+                  className={`mt-0.5 shrink-0 ${getSeverityTone(alert.severity).text}`}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <SeverityBadge severity={alert.severity} />
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm font-medium text-ink">
                       {alert.zoneName ?? "구역 미상"}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-muted">
                       {formatTime(alert.detectedAt)}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600">
-                    {alert.vlmDescription}
-                  </p>
+                  <p className="text-sm text-ink">{alert.vlmDescription}</p>
                   {alert.actionGuide && (
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-muted">
                       조치: {alert.actionGuide}
                     </p>
                   )}

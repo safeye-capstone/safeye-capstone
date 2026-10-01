@@ -2,6 +2,7 @@ import StatsSummary from "../components/StatsSummary";
 import ResultList from "../components/upload/ResultList";
 import { useOutletContext } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";
+import SeverityBadge from "../components/common/SeverityBadge";
 
 function DashboardPage() {
   const { alerts, connected } = useOutletContext();
@@ -33,15 +34,7 @@ function DashboardPage() {
               className="border-b border-border py-3 last:border-0"
             >
               <div className="flex items-center gap-2 mb-1">
-                <span
-                  className={`text-sm font-bold ${
-                    alert.severity.startsWith("CRITICAL")
-                      ? "text-danger"
-                      : "text-warn"
-                  }`}
-                >
-                  {alert.severity}
-                </span>
+                <SeverityBadge severity={alert.severity} />
                 <span className="text-xs text-muted">{alert.zoneName}</span>
               </div>
               <p className="text-sm text-ink">{alert.vlmDescription}</p>
