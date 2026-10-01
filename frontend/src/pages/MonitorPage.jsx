@@ -5,6 +5,7 @@ import { startVirtualEdge, stopVirtualEdge } from "../api/virtualEdge";
 import { formatTime } from "../utils/formatDate";
 import { getSeverityTone } from "../constants/severity";
 import SeverityBadge from "../components/common/SeverityBadge";
+import PageHeader from "../components/layout/PageHeader";
 
 export default function MonitorPage() {
   const { alerts = [], connected = false } = useOutletContext() ?? {};
@@ -35,10 +36,7 @@ export default function MonitorPage() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted">
-        가상 엣지 디바이스를 구동하여 현장 영상 수집 상황을 재현하고, 위험
-        판정을 실시간으로 수신합니다.
-      </p>
+      <PageHeader />
 
       <div className="flex items-center justify-between rounded-[14px] border border-border bg-white p-5">
         <div className="flex items-center gap-3">

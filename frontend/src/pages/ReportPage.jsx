@@ -4,6 +4,7 @@ import PageHeader from "../components/layout/PageHeader";
 import SeverityBar from "../components/report/SeverityBar";
 import { useDailyReport } from "../hooks/useDailyReport";
 import { addDays, formatReportDate, getYesterday } from "../utils/date";
+import { SEVERITY_BADGE } from "../constants/severity";
 
 function StatCard({ label, value, unit = "건", muted = false, note }) {
   return (
@@ -99,9 +100,18 @@ function ReportPage() {
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard label="전체 이벤트" value={report.totalCount ?? 0} />
-            <StatCard label="심각" value={report.criticalCount ?? 0} />
-            <StatCard label="주의" value={report.warningCount ?? 0} />
-            <StatCard label="안전" value={report.infoCount ?? 0} />
+            <StatCard
+              label={SEVERITY_BADGE.CRITICAL.label}
+              value={report.criticalCount ?? 0}
+            />
+            <StatCard
+              label={SEVERITY_BADGE.WARNING.label}
+              value={report.warningCount ?? 0}
+            />
+            <StatCard
+              label={SEVERITY_BADGE.INFO.label}
+              value={report.infoCount ?? 0}
+            />
           </div>
 
           <section className="border border-border rounded-lg bg-white p-5">
