@@ -27,13 +27,8 @@ export const MENU_GROUPS = [
         label: "실시간 감시",
         path: "/monitor",
         icon: MonitorPlay,
-        desc: "엣지 카메라 스트림을 구역별로 감시하고 위험을 즉시 경보합니다.",
+        desc: "가상 엣지 디바이스로 현장 수집 상황을 재현하고, 위험 판정을 실시간으로 수신합니다.",
         ready: true,
-        preview: [
-          "구역별 라이브 스트림 그리드",
-          "위험 감지 시 화면 오버레이 표시",
-          "경보 발생 타임라인",
-        ],
       },
       {
         id: "photo",
@@ -58,11 +53,6 @@ export const MENU_GROUPS = [
         icon: History,
         desc: "지금까지 분석한 결과를 조회하고 상세 내용을 확인합니다.",
         ready: true,
-        preview: [
-          "구역/기간/위험등급 필터",
-          "이력 테이블 및 페이지네이션",
-          "개별 이벤트 상세 보기",
-        ],
       },
       {
         id: "compliance",
@@ -82,14 +72,8 @@ export const MENU_GROUPS = [
         label: "자동 리포트",
         path: "/report",
         icon: FileBarChart2,
-        // desc: "기간별 안전 통계를 자동으로 집계해 리포트로 생성합니다.",
         desc: "매일 자정에 집계된 전날의 현장 안전 통계를 확인합니다.",
         ready: true,
-        preview: [
-          "주간/월간 리포트 자동 생성",
-          "위험 유형별 추이 그래프",
-          "PDF 내보내기",
-        ],
       },
     ],
   },

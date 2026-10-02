@@ -12,7 +12,7 @@ function Topbar({ onToggleSidebar }) {
         type="button"
         onClick={onToggleSidebar}
         aria-label="사이드바 열기/닫기"
-        className="text-muted hover:text-black transition-colors"
+        className="text-muted hover:text-ink transition-colors"
       >
         <Menu size={20} />
       </button>

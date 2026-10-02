@@ -1,29 +1,25 @@
 import { useEffect, useState } from "react";
-import { API_BASE } from "../constants/config";
+import { getZones } from "../api/zones";
 
 export function useZones() {
   const [zones, setZones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    let alive = true;
+    const controller = new AbortController();
 
-    fetch(`${API_BASE}/api/zones`)
-      .then((res) => res.json())
-      .then((body) => {
-        if (alive) setZones(body.data ?? []);
-      })
-      .catch(() => {
-        if (alive) setZones([]);
+    getZones({ signal: controller.signal })
+      .then((data) => setZones(data ?? []))
+      .catch((err) => {
+        if (!controller.signal.aborted) setError(err);
       })
       .finally(() => {
-        if (alive) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
 
-    return () => {
-      alive = false;
-    };
+    return () => controller.abort();
   }, []);
 
-  return { zones, loading };
+  return { zones, loading, error };
 }

@@ -1,23 +1,21 @@
 """Ollama HTTP 클라이언트.
-
 develop 브랜치의 비동기 로컬 노드용 OllamaClient와
 기존 VLM 파이프라인에서 사용하는 analyze_image()를 함께 제공한다.
-
 - FastAPI 로컬 노드: OllamaClient.chat_json()
 - 기존 이미지 파이프라인: analyze_image()
 """
 
 from __future__ import annotations
-
+import asyncio
 import base64
 import json
+import logging
 import re
+import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-
 import httpx
-
 from app.local.config import (
     FRAME_DIR,
     VIDEO_ANALYSIS_PROMPT,
@@ -26,25 +24,21 @@ from app.local.config import (
 )
 from app.local.imageops import clamp, validate_image
 
-
+logger = logging.getLogger(__name__)
 _NS_PER_MS = 1_000_000
 _FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.MULTILINE)
-
 LEGACY_MAX_IMAGE_SIDE = 1280
 LEGACY_JPEG_QUALITY = 90
 LEGACY_NUM_PREDICT = 1200
-
-
+RETRY_DELAY_SECONDS = 3.0
+_SYNC_REQUEST_LOCK = threading.Lock()
 OUTPUT_CONSTRAINTS = """
 [출력 규칙]
-
 - 반드시 하나의 유효한 JSON 객체만 반환하세요.
 - JSON 외부에 설명을 작성하지 마세요.
 - Markdown을 사용하지 마세요.
 - 동일한 문장이나 표현을 반복해서 생성하지 마세요.
-
 [출력 언어]
-
 - position, observations, evidence, scene_description 등
   모든 자연어 설명은 반드시 한국어로 작성하세요.
 - 자연어 설명에 영어 또는 중국어를 사용하거나
@@ -54,35 +48,23 @@ OUTPUT_CONSTRAINTS = """
   기존 분석 내용과 판단 근거의 상세도를
   생략하거나 축약하지 마세요.
 """
-
-
 LANGUAGE_RETRY_INSTRUCTION = """
 [언어 검증 실패 - 재출력 지시]
-
 이전 응답의 자연어 필드에 영어 또는 중국어가 포함되었습니다.
-
 이미지에 대한 분석 기준과 판단 내용의 상세도는 그대로 유지하세요.
 분석 내용을 축약하거나 단순화하지 마세요.
-
 단, 다음 자연어 필드만 반드시 한국어로 작성하세요.
-
 - position
 - observations
 - evidence
 - scene_description
-
 JSON key와 enum 값은 기존 영어 형식을 그대로 유지하세요.
-
 예:
 "position": "고소 작업발판 가장자리에서 작업 중"
-
 잘못된 예:
 "position": "WORKING_ON_HIGH_STRUCTURE"
-
 JSON 객체 하나만 다시 반환하세요.
 """
-
-
 VLM_SCHEMA = {
     "type": "object",
     "properties": {
@@ -239,15 +221,29 @@ def strip_fence(text: str) -> str:
     return _FENCE.sub("", text).strip()
 
 
+def decode_json_object(text: str) -> dict:
+    """JSON 외부 문장이 섞여 있어도 첫 번째 완전한 JSON 객체를 복구한다."""
+    cleaned = strip_fence(text)
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", cleaned):
+        try:
+            parsed, _ = decoder.raw_decode(cleaned[match.start() :])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    raise OllamaBadJSON("모델 응답에서 유효한 JSON 객체를 찾지 못했습니다.")
+
+
 def fallback_json_prompt(prompt: str) -> str:
     """엄격한 schema가 불안정한 VLM을 위해 더 단순한 JSON-전용 프롬프트로 낮춘다."""
     base = prompt.strip()
     suffix = (
-        "\nReturn only valid JSON with no markdown, no code fences, "
-        "and no prose. You MUST include every key exactly once: "
+        "\n유효한 JSON 객체 하나만 반환하세요. Markdown, 코드 블록, JSON 외부 설명은 "
+        "사용하지 마세요. 다음 key를 각각 한 번씩 반드시 포함하세요: "
         "observed_objects, spatial_relations, uncertain, hazard_detected, "
         "hazard_type, severity, reasoning, recommended_actions, references, "
-        "confidence. Use empty arrays when there is no value."
+        "confidence. 값이 없으면 빈 배열을 사용하세요. 자연어 값은 한국어로 작성하세요."
     )
     return (base + suffix).strip()
 
@@ -280,6 +276,7 @@ class OllamaClient:
             write=10.0,
             pool=5.0,
         )
+        self._request_lock = asyncio.Lock()
 
     def _options(self, override: dict | None = None) -> dict:
         options = {
@@ -299,15 +296,11 @@ class OllamaClient:
                 try:
                     return response.json()
                 except ValueError as error:
-                    raise OllamaBadJSON(
-                        "Ollama가 JSON이 아닌 HTTP 응답을 반환했습니다."
-                    ) from error
+                    raise OllamaBadJSON("Ollama가 JSON이 아닌 HTTP 응답을 반환했습니다.") from error
         except (httpx.ConnectError, httpx.ConnectTimeout) as error:
-            raise OllamaUnreachable(
-                f"Ollama unreachable: {self.base_url} ({error})"
-            ) from error
-        except httpx.ReadTimeout as error:
-            raise OllamaTimeout(f"read timeout: {path}") from error
+            raise OllamaUnreachable(f"Ollama unreachable: {self.base_url} ({error})") from error
+        except (httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as error:
+            raise OllamaTimeout(f"Ollama 요청 시간 초과: {path}") from error
         except httpx.HTTPStatusError as error:
             raise OllamaError(
                 f"HTTP {error.response.status_code}: {error.response.text[:200]}"
@@ -323,7 +316,6 @@ class OllamaClient:
         options: dict | None = None,
     ) -> tuple[dict, OllamaTiming]:
         """이미지 1장과 프롬프트를 보내고 JSON dict와 타이밍을 받는다.
-
         일부 VLM 모델은 엄격한 JSON schema를 요구하는 format일 때 빈 응답을
         반환하는 경우가 있으므로, 실패 시 한 번만 일반 JSON 모드로 재시도한다.
         """
@@ -345,7 +337,6 @@ class OllamaClient:
                 "references",
                 "confidence",
             }
-
         last_body: dict | None = None
         last_content = ""
         last_thinking = ""
@@ -367,14 +358,14 @@ class OllamaClient:
             }
             if self.think is not None:
                 payload["think"] = self.think
-            body = await self._post("/api/chat", payload)
+            async with self._request_lock:
+                body = await self._post("/api/chat", payload)
             last_body = body
             timing = OllamaTiming.from_response(body)
             message = body.get("message") or {}
             content = message.get("content", "")
             last_content = content
             last_thinking = message.get("thinking", "")
-
             candidates = [content, last_thinking]
             for candidate in candidates:
                 if not candidate or not candidate.strip():
@@ -384,17 +375,14 @@ class OllamaClient:
                     cleaned = re.sub(r"^<think>\s*", "", cleaned, flags=re.I)
                     cleaned = re.sub(r"\s*</think>\s*$", "", cleaned, flags=re.I)
                 try:
-                    parsed = json.loads(cleaned)
-                    if not isinstance(parsed, dict):
-                        continue
+                    parsed = decode_json_object(cleaned)
                     missing_keys = required_keys.difference(parsed)
                     if missing_keys:
                         last_missing_keys = missing_keys
                         continue
                     return parsed, timing
-                except json.JSONDecodeError:
+                except OllamaBadJSON:
                     continue
-
         if last_body is not None:
             raw_head = repr(last_content[:200].replace("\n", " "))
             thinking_head = repr(last_thinking[:200].replace("\n", " "))
@@ -404,9 +392,7 @@ class OllamaClient:
             if last_content.strip():
                 raise OllamaBadJSON(f"invalid JSON / raw_head={raw_head}")
             if last_thinking.strip():
-                raise OllamaBadJSON(
-                    f"empty content / thinking_head={thinking_head}"
-                )
+                raise OllamaBadJSON(f"empty content / thinking_head={thinking_head}")
             raise OllamaBadJSON(f"empty response / raw_head={raw_head}")
         raise OllamaBadJSON("empty response")
 
@@ -463,9 +449,7 @@ class OllamaClient:
 
     async def alive(self) -> bool:
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(self.connect_timeout)
-            ) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(self.connect_timeout)) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
                 return response.status_code == 200
         except Exception:
@@ -475,10 +459,8 @@ class OllamaClient:
 def load_video_prompt() -> str:
     if not VIDEO_ANALYSIS_PROMPT.exists():
         raise FileNotFoundError(
-            "영상 분석 프롬프트를 찾을 수 없습니다.\n"
-            f"경로: {VIDEO_ANALYSIS_PROMPT}"
+            "영상 분석 프롬프트를 찾을 수 없습니다.\n" f"경로: {VIDEO_ANALYSIS_PROMPT}"
         )
-
     prompt = VIDEO_ANALYSIS_PROMPT.read_text(encoding="utf-8").strip()
     if not prompt:
         raise ValueError("video_analysis.txt가 비어 있습니다.")
@@ -490,19 +472,13 @@ def remove_markdown_fence(content: str) -> str:
 
 
 def parse_json_response(content: str) -> dict:
-    content = remove_markdown_fence(content)
     try:
-        return json.loads(content)
-    except json.JSONDecodeError as error:
-        print()
-        print("=== JSON 파싱 실패 ===")
-        print(
-            f"오류 위치: line={error.lineno}, "
-            f"column={error.colno}, char={error.pos}"
+        return decode_json_object(content)
+    except OllamaBadJSON:
+        logger.error(
+            "JSON 파싱 실패 - response_tail=%r",
+            content[-500:],
         )
-        print()
-        print("=== 응답 마지막 500자 ===")
-        print(content[-500:])
         raise
 
 
@@ -513,18 +489,47 @@ def normalize_worker_ids(analysis: dict) -> dict:
     return analysis
 
 
+def validate_analysis_schema(analysis: dict) -> None:
+    """기존 파이프라인이 사용하는 핵심 VLM 응답 구조를 검증한다."""
+    required_top_level = {"workers", "hazards", "scene_description"}
+    missing = required_top_level.difference(analysis)
+    if missing:
+        raise OllamaBadJSON(f"VLM JSON 필수 필드 누락: {', '.join(sorted(missing))}")
+
+    if not isinstance(analysis["workers"], list):
+        raise OllamaBadJSON("VLM JSON의 workers는 배열이어야 합니다.")
+    if not isinstance(analysis["hazards"], list):
+        raise OllamaBadJSON("VLM JSON의 hazards는 배열이어야 합니다.")
+    if not isinstance(analysis["scene_description"], str):
+        raise OllamaBadJSON("VLM JSON의 scene_description은 문자열이어야 합니다.")
+
+    worker_required = set(VLM_SCHEMA["properties"]["workers"]["items"]["required"])
+    hazard_required = set(VLM_SCHEMA["properties"]["hazards"]["items"]["required"])
+
+    for index, worker in enumerate(analysis["workers"]):
+        if not isinstance(worker, dict):
+            raise OllamaBadJSON(f"workers[{index}]는 객체여야 합니다.")
+        missing = worker_required.difference(worker)
+        if missing:
+            raise OllamaBadJSON(f"workers[{index}] 필수 필드 누락: {', '.join(sorted(missing))}")
+
+    for index, hazard in enumerate(analysis["hazards"]):
+        if not isinstance(hazard, dict):
+            raise OllamaBadJSON(f"hazards[{index}]는 객체여야 합니다.")
+        missing = hazard_required.difference(hazard)
+        if missing:
+            raise OllamaBadJSON(f"hazards[{index}] 필수 필드 누락: {', '.join(sorted(missing))}")
+
+
 def collect_natural_language_fields(analysis: dict) -> list[tuple[str, str]]:
     fields: list[tuple[str, str]] = []
-
     scene_description = analysis.get("scene_description", "")
     if scene_description:
         fields.append(("scene_description", str(scene_description)))
-
     for index, worker in enumerate(analysis.get("workers", [])):
         position = worker.get("position", "")
         if position:
             fields.append((f"workers[{index}].position", str(position)))
-
         observations = worker.get("observations", [])
         for obs_index, observation in enumerate(observations):
             if observation:
@@ -534,12 +539,10 @@ def collect_natural_language_fields(analysis: dict) -> list[tuple[str, str]]:
                         str(observation),
                     )
                 )
-
     for index, hazard in enumerate(analysis.get("hazards", [])):
         evidence = hazard.get("evidence", "")
         if evidence:
             fields.append((f"hazards[{index}].evidence", str(evidence)))
-
     return fields
 
 
@@ -547,43 +550,33 @@ def is_invalid_natural_language(text: str) -> bool:
     text = str(text).strip()
     if not text:
         return False
-
     if re.search(r"[\u4e00-\u9fff]", text):
         return True
-
     if re.search(r"\b[A-Z]{2,}(?:_[A-Z]{2,})+\b", text):
         return True
-
     english_words = re.findall(r"\b[A-Za-z]{2,}\b", text)
     hangul_chars = re.findall(r"[가-힣]", text)
-
     if len(hangul_chars) == 0 and len(english_words) >= 2:
         return True
-
     if len(english_words) >= 4:
         return True
-
     return False
 
 
 def validate_korean_output(analysis: dict) -> None:
     invalid_fields: list[tuple[str, str]] = []
-
     for field_name, text in collect_natural_language_fields(analysis):
         if is_invalid_natural_language(text):
             invalid_fields.append((field_name, text))
-
     if not invalid_fields:
         return
-
-    print()
-    print("=== 출력 언어 검증 실패 ===")
     for field_name, text in invalid_fields:
-        print(f"- {field_name}: {text[:120]}")
-
-    raise LanguageValidationError(
-        "자연어 필드에 영어 또는 중국어가 포함되어 있습니다."
-    )
+        logger.warning(
+            "출력 언어 검증 실패 - field=%s, value=%r",
+            field_name,
+            text[:120],
+        )
+    raise LanguageValidationError("자연어 필드에 영어 또는 중국어가 포함되어 있습니다.")
 
 
 def prepare_image_base64(image_path: Path) -> str:
@@ -595,16 +588,16 @@ def prepare_image_base64(image_path: Path) -> str:
             LEGACY_JPEG_QUALITY,
         )
     except Exception as error:
-        raise RuntimeError(
-            f"이미지를 읽거나 변환할 수 없습니다: {image_path}"
-        ) from error
-
+        raise RuntimeError(f"이미지를 읽거나 변환할 수 없습니다: {image_path}") from error
     if meta.get("resized"):
-        print(
-            f"[이미지 전처리] {image_path.name}: "
-            f"{meta['orig_w']}x{meta['orig_h']} → {meta['w']}x{meta['h']}"
+        logger.debug(
+            "이미지 전처리 - image=%s, %sx%s -> %sx%s",
+            image_path.name,
+            meta["orig_w"],
+            meta["orig_h"],
+            meta["w"],
+            meta["h"],
         )
-
     return base64.b64encode(processed).decode("utf-8")
 
 
@@ -616,7 +609,6 @@ def request_ollama(
 ) -> dict:
     repeat_penalty = 1.15 + (attempt - 1) * 0.05
     temperature = min(0.10 + (attempt - 1) * 0.05, 0.20)
-
     payload = {
         "model": VLM_MODEL,
         "prompt": prompt,
@@ -634,33 +626,31 @@ def request_ollama(
             "top_p": 0.90,
         },
     }
-
     timeout = httpx.Timeout(
         connect=cfg.connect_timeout,
         read=max(cfg.read_timeout, 300.0),
         write=30.0,
         pool=5.0,
     )
-
+    request_started = time.perf_counter()
     try:
-        with httpx.Client(timeout=timeout) as client:
-            response = client.post(
-                f"{cfg.ollama_base_url.rstrip('/')}/api/generate",
-                json=payload,
-            )
-            if not response.is_success:
-                print()
-                print("=== Ollama HTTP 오류 ===")
-                print(f"status={response.status_code}")
-                print(response.text[:2000])
-            response.raise_for_status()
-            data = response.json()
-
+        with _SYNC_REQUEST_LOCK:
+            with httpx.Client(timeout=timeout) as client:
+                response = client.post(
+                    f"{cfg.ollama_base_url.rstrip('/')}/api/generate",
+                    json=payload,
+                )
+                if not response.is_success:
+                    logger.error(
+                        "Ollama HTTP 오류 - status=%s, response=%r",
+                        response.status_code,
+                        response.text[:2000],
+                    )
+                response.raise_for_status()
+                data = response.json()
     except (httpx.ConnectError, httpx.ConnectTimeout) as error:
-        raise OllamaUnreachable(
-            f"Ollama unreachable: {cfg.ollama_base_url} ({error})"
-        ) from error
-    except httpx.ReadTimeout as error:
+        raise OllamaUnreachable(f"Ollama unreachable: {cfg.ollama_base_url} ({error})") from error
+    except (httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as error:
         raise OllamaTimeout("Ollama 이미지 분석 read timeout") from error
     except httpx.HTTPStatusError as error:
         raise OllamaError(
@@ -668,14 +658,16 @@ def request_ollama(
         ) from error
     except ValueError as error:
         raise OllamaBadJSON("Ollama HTTP 응답 자체가 JSON이 아닙니다.") from error
-
-    print(
-        f"[Ollama] {image_path.name} "
-        f"status={response.status_code}, "
-        f"done={data.get('done')}, "
-        f"reason={data.get('done_reason')}, "
-        f"tokens={data.get('eval_count')}, "
-        f"model={data.get('model')}"
+    logger.info(
+        "Ollama 응답 - image=%s, status=%s, done=%s, reason=%s, tokens=%s, "
+        "model=%s, elapsed=%.2fs",
+        image_path.name,
+        response.status_code,
+        data.get("done"),
+        data.get("done_reason"),
+        data.get("eval_count"),
+        data.get("model"),
+        time.perf_counter() - request_started,
     )
     return data
 
@@ -685,99 +677,93 @@ def analyze_image(
     prompt: str | None = None,
     max_retries: int = 3,
 ) -> str:
-    image_path = validate_image(image_path)
+    if max_retries < 1:
+        raise ValueError("max_retries는 1 이상이어야 합니다.")
 
+    analysis_started = time.perf_counter()
+    image_path = validate_image(image_path)
     if prompt is None:
         prompt = load_video_prompt()
-
     image_base64 = prepare_image_base64(image_path)
     last_error: Exception | None = None
     language_retry_required = False
-
     for attempt in range(1, max_retries + 1):
         try:
             request_prompt = prompt
             if language_retry_required:
                 request_prompt = prompt + "\n\n" + LANGUAGE_RETRY_INSTRUCTION
-                print(
-                    "[언어 재시도] 분석 내용은 유지하고 "
-                    "자연어 필드만 한국어로 재생성합니다."
-                )
-
+                logger.info("언어 재시도 - 분석 내용은 유지하고 자연어 필드만 한국어로 재생성")
             data = request_ollama(
                 image_path=image_path,
                 image_base64=image_base64,
                 prompt=request_prompt,
                 attempt=attempt,
             )
-
             done = data.get("done", False)
             done_reason = data.get("done_reason")
             model = data.get("model", "")
             content = data.get("response", "")
-
             if not model or not content:
                 thinking = data.get("thinking", "")
                 if thinking:
-                    raise RuntimeError(
-                        "Ollama가 response 대신 thinking 응답만 반환했습니다."
-                    )
-                raise RuntimeError(
-                    "Ollama가 빈 응답을 반환했습니다.\n"
-                    f"전체 응답: {data}"
-                )
-
+                    raise RuntimeError("Ollama가 response 대신 thinking 응답만 반환했습니다.")
+                raise RuntimeError("Ollama가 빈 응답을 반환했습니다.\n" f"전체 응답: {data}")
             if not done:
                 raise RuntimeError(
-                    "Ollama 추론이 정상적으로 완료되지 않았습니다.\n"
-                    f"전체 응답: {data}"
+                    "Ollama 추론이 정상적으로 완료되지 않았습니다.\n" f"전체 응답: {data}"
                 )
-
             if done_reason == "length":
                 raise RuntimeError("VLM 응답이 출력 길이 제한에 도달했습니다.")
-
             parsed = parse_json_response(content)
             parsed = normalize_worker_ids(parsed)
+            validate_analysis_schema(parsed)
             validate_korean_output(parsed)
-
+            logger.info(
+                "VLM 분석 완료 - image=%s, attempt=%s, elapsed=%.2fs",
+                image_path.name,
+                attempt,
+                time.perf_counter() - analysis_started,
+            )
             return json.dumps(parsed, ensure_ascii=False, indent=2)
-
         except LanguageValidationError as error:
             last_error = error
             language_retry_required = True
-
-            print()
-            print(f"[재시도] {image_path.name} {attempt}/{max_retries}")
-            print(f"원인: {error}")
-
+            logger.warning(
+                "VLM 언어 검증 재시도 - image=%s, attempt=%s/%s, reason=%s",
+                image_path.name,
+                attempt,
+                max_retries,
+                error,
+            )
             if attempt < max_retries:
-                print("한국어 출력 규칙을 강화하여 3초 후 다시 시도합니다...")
-                time.sleep(3)
-
+                logger.info(
+                    "한국어 출력 규칙을 강화하여 %.1f초 후 다시 시도합니다.",
+                    RETRY_DELAY_SECONDS,
+                )
+                time.sleep(RETRY_DELAY_SECONDS)
         except Exception as error:
             last_error = error
-
-            print()
-            print(f"[재시도] {image_path.name} {attempt}/{max_retries}")
-            print(f"원인: {error}")
-
+            logger.warning(
+                "VLM 분석 재시도 - image=%s, attempt=%s/%s, reason=%s",
+                image_path.name,
+                attempt,
+                max_retries,
+                error,
+            )
             if attempt < max_retries:
-                print("3초 후 다시 시도합니다...")
-                time.sleep(3)
-
+                logger.info("%.1f초 후 다시 시도합니다.", RETRY_DELAY_SECONDS)
+                time.sleep(RETRY_DELAY_SECONDS)
     raise RuntimeError(f"{image_path.name} VLM 분석 최종 실패") from last_error
 
 
 def main() -> None:
     image_path = FRAME_DIR / "frame_0000.00.jpg"
-
     print()
     print("=" * 60)
     print("VLM 단일 이미지 테스트")
     print("=" * 60)
     print(f"모델: {VLM_MODEL}")
     print(f"이미지: {image_path}")
-
     try:
         result = analyze_image(image_path)
         print()
@@ -794,4 +780,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
     main()

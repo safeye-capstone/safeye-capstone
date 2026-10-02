@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import PageHeader from "../components/layout/PageHeader";
-import SeverityBar from "../components/SeverityBar";
+import SeverityBar from "../components/report/SeverityBar";
 import { useDailyReport } from "../hooks/useDailyReport";
 import { addDays, formatReportDate, getYesterday } from "../utils/date";
+import { SEVERITY_BADGE } from "../constants/severity";
 
 function StatCard({ label, value, unit = "건", muted = false, note }) {
   return (
@@ -26,15 +27,9 @@ function ReportPage() {
   const { report, loading, error } = useDailyReport(date);
 
   const maxDate = getYesterday();
-  const shown = date ?? report?.targetDate ?? maxDate;
+  const shown = date ?? report?.targetDate ?? (error ? maxDate : undefined);
 
-  const stale = Boolean(
-    report &&
-    (date ? report.targetDate !== date : report.targetDate !== maxDate),
-  );
-  const showLoading = loading || stale;
-
-  const atLatest = shown >= maxDate;
+  const atLatest = date === undefined || shown >= maxDate;
 
   const move = (days) => {
     if (!shown) return;
@@ -81,13 +76,13 @@ function ReportPage() {
         )}
       </div>
 
-      {showLoading && (
+      {loading && (
         <div className="border border-border rounded-lg bg-white p-10 text-center text-muted">
           불러오는 중...
         </div>
       )}
 
-      {!showLoading && error && (
+      {!loading && error && (
         <div className="border border-border rounded-lg bg-white p-10 text-center">
           <p className="text-sm text-muted">{error.message}</p>
           {error.type === "NOT_GENERATED" && (
@@ -98,13 +93,22 @@ function ReportPage() {
         </div>
       )}
 
-      {!showLoading && !error && report && (
+      {!loading && !error && report && (
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard label="전체 이벤트" value={report.totalCount ?? 0} />
-            <StatCard label="심각" value={report.criticalCount ?? 0} />
-            <StatCard label="주의" value={report.warningCount ?? 0} />
-            <StatCard label="안전" value={report.infoCount ?? 0} />
+            <StatCard
+              label={SEVERITY_BADGE.CRITICAL.label}
+              value={report.criticalCount ?? 0}
+            />
+            <StatCard
+              label={SEVERITY_BADGE.WARNING.label}
+              value={report.warningCount ?? 0}
+            />
+            <StatCard
+              label={SEVERITY_BADGE.INFO.label}
+              value={report.infoCount ?? 0}
+            />
           </div>
 
           <section className="border border-border rounded-lg bg-white p-5">

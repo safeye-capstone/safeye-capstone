@@ -1,31 +1,16 @@
 import { Link } from "react-router-dom";
-import { formatDate } from "../utils/formatDate";
+import { formatDate } from "../../utils/date";
+import { getSeverityTone } from "../../constants/severity";
+import SeverityBadge from "../common/SeverityBadge";
+import { parseRegulations } from "../../utils/regulation";
+import { FEATURE_RESULT_DETAIL } from "../../constants/config";
 
-const SEVERITY_STYLE = {
-  CRITICAL: {
-    label: "심각",
-    box: "border-danger bg-danger-bg",
-    text: "text-danger",
-  },
-  WARNING: {
-    label: "주의",
-    box: "border-warn bg-warn-bg",
-    text: "text-warn",
-  },
-  INFO: {
-    label: "안전",
-    box: "border-border bg-white",
-    text: "text-safe",
-  },
-};
-
-const UNKNOWN_STYLE = {
-  label: "확인 필요",
-  box: "border-border bg-white",
-  text: "text-muted",
-};
-
-function ResultList({ results = [], loading = false, error = null }) {
+function ResultList({
+  results = [],
+  loading = false,
+  error = null,
+  emptyMessage = "사진을 올리면 분석 결과가 여기에 표시됩니다.",
+}) {
   if (loading) {
     return <div className="p-4 text-center text-muted">분석하는 중...</div>;
   }
@@ -42,26 +27,22 @@ function ResultList({ results = [], loading = false, error = null }) {
     <div>
       <h2 className="text-[14.5px] font-bold mb-4">판단 결과</h2>
       {results.length === 0 ? (
-        <p className="text-muted text-sm">
-          사진을 올리면 분석 결과가 여기에 표시됩니다.
-        </p>
+        <p className="text-muted text-sm">{emptyMessage}</p>
       ) : (
         results.map((item) => {
-          const style = SEVERITY_STYLE[item.severity] ?? UNKNOWN_STYLE;
+          const tone = getSeverityTone(item.severity);
           const detectedLabel =
             formatDate(item.detectedAt) ?? formatDate(item.receivedAt);
+          const regulations = parseRegulations(item.violatedRegulation);
 
           return (
             <article
               key={item.clientId ?? item.id}
-              className={`border rounded-lg p-4 mb-3 ${style.box}`}
+              className={`border rounded-lg p-4 mb-3 ${tone.box}`}
             >
               <header className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
-                <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded-full border border-current ${style.text}`}
-                >
-                  {style.label}
-                </span>
+                <SeverityBadge severity={item.severity} />
+
                 {item.zoneName && (
                   <span className="text-xs text-muted min-w-0 truncate">
                     {item.zoneName}
@@ -76,14 +57,21 @@ function ResultList({ results = [], loading = false, error = null }) {
                 {item.vlmDescription || "설명을 생성하지 못했습니다."}
               </p>
 
-              {item.violatedRegulation && (
-                <section className="mt-4 pl-3 border-l-2 border-border">
+              {regulations.length > 0 && (
+                <section className="mt-4 pl-3 border-1-2 border-border">
                   <h3 className="text-xs font-semibold text-muted mb-1">
                     위반 규정
                   </h3>
-                  <p className="text-sm text-ink whitespace-pre-wrap break-keep">
-                    {item.violatedRegulation}
-                  </p>
+                  {regulations.map(({ law, articles }) => (
+                    <div key={law} className="mb-1.5 last:mb-0">
+                      {law && <p className="text-xs text-muted">{law}</p>}
+                      <ul className="text-sm text-ink break-keep">
+                        {articles.map((article) => (
+                          <li key={article}>{article}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </section>
               )}
 
@@ -98,12 +86,14 @@ function ResultList({ results = [], loading = false, error = null }) {
                 </section>
               )}
 
-              <Link
-                to={`/history/${item.id}`}
-                className="inline-block mt-3 text-xs font-semibold text-accent no-underline"
-              >
-                상세 보기
-              </Link>
+              {FEATURE_RESULT_DETAIL && (
+                <Link
+                  to={`/history/${item.id}`}
+                  className="inline-block mt-3 text-xs font-semibold text-accent no-underline"
+                >
+                  상세 보기
+                </Link>
+              )}
             </article>
           );
         })
