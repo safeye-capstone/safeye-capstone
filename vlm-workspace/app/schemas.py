@@ -1,10 +1,9 @@
 """VLM 분석 결과가 오가는 공통 스키마.
 
-`VLMInternal`: 모델과 내부 백엔드 사이에서 쓰는 자세한 결과,
-`VLMResponse`: 백엔드/Spring 쪽에 넘기는 응답
+VLMInternal은 모델의 내부 분석 결과, VLMResponse는 백엔드 전달 응답이다.
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -50,9 +49,13 @@ class VLMResponse(BaseModel):
     action_guide: str
     vlm_description: str
     violated_regulation: str
+    ragMetadata: dict[str, Any] | None = Field(
+        default=None,
+        description="전체 및 위험별 최종 판단 상태, 일관성 점수, RAG 관련 부가 정보",
+    )
 
 
-# Ollama `format=`이나 OpenAI `response_format`에 그대로 넣는 내부 응답 스키마.
+# Ollama format 또는 OpenAI response_format에 사용하는 내부 응답 스키마.
 INTERNAL_JSON_SCHEMA = VLMInternal.model_json_schema()
 INTERNAL_JSON_SCHEMA["required"] = list(VLMInternal.model_fields)
 INTERNAL_JSON_SCHEMA["$defs"]["ObservedObject"]["required"] = [

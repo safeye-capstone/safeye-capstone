@@ -1,9 +1,13 @@
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from app.local.ollama_client import analyze_image, load_video_prompt
 from app.rag.query_builder import normalize_vlm_analysis
+
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -354,8 +358,12 @@ def run_prompt_ensemble(
     successful_votes = 0
 
     for index, instruction in enumerate(prompts, start=1):
-        print()
-        print(f"[재검증 {index}/{len(prompts)}] {risk_type}")
+        logger.info(
+            "재검증 시작 - risk_type=%s, prompt=%s/%s",
+            risk_type,
+            index,
+            len(prompts),
+        )
 
         try:
             result = run_single_reverification(
@@ -377,17 +385,22 @@ def run_prompt_ensemble(
                 }
             )
 
-            print(
-                "  결과: "
-                + (
-                    "위험 확인"
-                    if result["detected"]
-                    else "위험 미확인"
-                )
+            logger.info(
+                "재검증 결과 - risk_type=%s, prompt=%s/%s, detected=%s",
+                risk_type,
+                index,
+                len(prompts),
+                result["detected"],
             )
 
         except Exception as error:
-            print(f"  재검증 실패: {error}")
+            logger.warning(
+                "재검증 실패 - risk_type=%s, prompt=%s/%s, error=%s",
+                risk_type,
+                index,
+                len(prompts),
+                error,
+            )
 
             details.append(
                 {
@@ -578,11 +591,11 @@ def apply_reverification(
             )
             continue
 
-        print()
-        print("=" * 60)
-        print(f"[위험 재검증] {risk_type}")
-        print(f"대표 프레임: {frame_path.name}")
-        print("=" * 60)
+        logger.info(
+            "위험 재검증 실행 - risk_type=%s, representative_frame=%s",
+            risk_type,
+            frame_path.name,
+        )
 
         ensemble_result = run_prompt_ensemble(
             image_path=frame_path,
