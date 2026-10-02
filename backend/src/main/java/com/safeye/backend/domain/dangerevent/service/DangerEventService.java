@@ -46,7 +46,7 @@ public class DangerEventService {
 
     dangerEventRepository.save(dangerEvent);
 
-    log.info("위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}, decisionStatus: {}", dangerEvent.getId(),
+    log.info("위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}, decisionState: {}", dangerEvent.getId(),
         vlmResponseDto.severity(), vlmResponseDto.decisionState());
     return DangerEventDto.from(dangerEvent);
   }
@@ -66,7 +66,7 @@ public class DangerEventService {
     );
 
     dangerEventRepository.save(dangerEvent);
-    log.info("[VirtualEdge] 위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}, decisionStatus: {}",
+    log.info("[VirtualEdge] 위험 이벤트 저장 완료 (정상/위험 모두 포함) - dangerEventId: {}, severity: {}, decisionState: {}",
         dangerEvent.getId(), vlmResponseDto.severity(), vlmResponseDto.decisionState());
 
     eventPublisher.publishEvent(new DangerEventCreatedEvent(DangerEventDto.from(dangerEvent)));
