@@ -14,7 +14,7 @@ VALID_RISK_TYPES = (
 CONFIDENCE_SCORE = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
 
 # 한 번 탐지된 위험도 후보에서는 제거하지 않는다. 이 값은 위험을
-# 확정적으로 지지하는 최소 프레임 수와 최종 confidence 계산에 사용한다.
+# 확정적으로 지지하는 최소 프레임 수를 판단하는 데 사용한다.
 MIN_DETECTION_COUNT = {
     "NO_HELMET": 2,
     "UNFASTENED_SAFETY_HARNESS": 2,
@@ -154,25 +154,6 @@ def _collect_risk_buckets(
     return buckets
 
 
-def _calculate_final_confidence(
-    *,
-    meets_min_detection_count: bool,
-    average_score: float,
-    temporal_support: float,
-    detection_count: int,
-) -> str:
-    # HIGH는 기존 기준대로 최소 3개 프레임의 탐지 근거를 요구한다.
-    if (
-        meets_min_detection_count
-        and detection_count >= 3
-        and temporal_support >= 1.0
-        and average_score >= 2.0
-    ):
-        return "HIGH"
-    if meets_min_detection_count and temporal_support >= 0.66 and average_score >= 1.5:
-        return "MEDIUM"
-    return "LOW"
-
 
 def aggregate_frame_results(
     frame_results: list[dict[str, Any]],
@@ -181,8 +162,9 @@ def aggregate_frame_results(
 ) -> list[dict[str, Any]]:
     """여러 프레임의 VLM 결과를 위험 유형별로 통합한다.
 
-    한 프레임에서만 탐지된 위험도 후보로 유지하지만 confidence는 LOW로
-    제한한다. 실패 프레임은 탐지 비율의 분모에서 제외하지만 시간축에서는
+    한 프레임에서만 탐지된 위험도 후보로 유지한다. 신뢰도 등급은
+    confidence_calibrator에서 계산한다. 실패 프레임은 탐지 비율의 분모에서
+    제외하지만 시간축에서는
     유지한다. 연속 탐지를 끊고 temporal support에는 지지 근거를 더하지 않는다.
     호출자는 실패 프레임도 원래 순서에 error와 함께 전달해야 한다.
     """
@@ -224,18 +206,11 @@ def aggregate_frame_results(
 
         scores = list(data["confidence_by_frame"].values())
         average_score = round(sum(scores) / len(scores), 3) if scores else 1.0
-        final_confidence = _calculate_final_confidence(
-            meets_min_detection_count=meets_min_detection_count,
-            average_score=average_score,
-            temporal_support=temporal_support,
-            detection_count=detection_count,
-        )
 
         aggregated_results.append(
             {
                 "risk_type": risk_type,
                 "detected": True,
-                "confidence": final_confidence,
                 "detection_count": detection_count,
                 "required_count": required_count,
                 "meets_min_detection_count": meets_min_detection_count,

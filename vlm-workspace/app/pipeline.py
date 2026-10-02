@@ -229,7 +229,6 @@ def print_aggregated_summary(hazards: list[dict]) -> None:
         print()
         print(f"[위험 {index}]")
         print(f"유형: {hazard.get('risk_type')}")
-        print(f"Aggregator 신뢰도: {hazard.get('confidence')}")
         print(
             f"Temporal support: "
             f"{hazard.get('temporal_support', 0):.3f}"
