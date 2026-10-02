@@ -31,7 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ComplianceReportService {
 
-  public static final ZoneId KST = ZoneId.of("Asia/Seoul");
+  public static final ZoneId KST = ComplianceReport.KST;
 
   private final DangerEventRepository dangerEventRepository;
   private final ComplianceReportRepository complianceReportRepository;
@@ -55,7 +55,7 @@ public class ComplianceReportService {
     if (existing.isPresent()) {
       ComplianceReport existingReport = existing.get();
 
-      if (!existingReport.getCreatedAt().isBefore(end)) {
+      if (existingReport.isFinal()) {
         log.info("[{}] 완성된 리포트가 이미 존재하여 생성을 건너뜁니다.", targetDate);
         return ComplianceReportDto.from(existingReport);
       }

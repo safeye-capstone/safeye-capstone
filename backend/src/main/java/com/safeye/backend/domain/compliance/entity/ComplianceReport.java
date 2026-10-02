@@ -5,7 +5,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,6 +27,8 @@ uniqueConstraints = @UniqueConstraint(
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 public class ComplianceReport extends BaseEntity {
+
+  public static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
   @Column(nullable = false, length = 255)
   private String title;
@@ -84,5 +88,11 @@ public class ComplianceReport extends BaseEntity {
         .fileUrl(null)
         .reportType("DAILY")
         .build();
+  }
+
+  // TODO: 추후 완성본 여부를 시각으로 추측하지 않고, 만들 때 기록한 상태를 그대로 보도록 리팩토링
+  public boolean isFinal() {
+    Instant dayEnd = startDate.plusDays(1).atStartOfDay(KST).toInstant();
+    return !getCreatedAt().isBefore(dayEnd);
   }
 }
