@@ -1,4 +1,4 @@
-package com.safeye.backend.domain.complianceReport.entity;
+package com.safeye.backend.domain.compliance.entity;
 
 import com.safeye.backend.global.entity.BaseEntity;
 import jakarta.persistence.Column;

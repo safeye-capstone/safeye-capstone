@@ -1,8 +1,8 @@
-package com.safeye.backend.domain.complianceReport.service;
+package com.safeye.backend.domain.compliance.service;
 
-import com.safeye.backend.domain.complianceReport.dto.response.ComplianceReportDto;
-import com.safeye.backend.domain.complianceReport.entity.ComplianceReport;
-import com.safeye.backend.domain.complianceReport.repository.ComplianceReportRepository;
+import com.safeye.backend.domain.compliance.dto.response.ComplianceReportDto;
+import com.safeye.backend.domain.compliance.entity.ComplianceReport;
+import com.safeye.backend.domain.compliance.repository.ComplianceReportRepository;
 import com.safeye.backend.domain.dangerevent.entity.Severity;
 import com.safeye.backend.domain.dangerevent.exception.ReportErrorCode;
 import com.safeye.backend.domain.dangerevent.repository.DangerEventRepository;

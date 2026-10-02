@@ -1,7 +1,7 @@
-package com.safeye.backend.domain.complianceReport.controller;
+package com.safeye.backend.domain.compliance.controller;
 
-import com.safeye.backend.domain.complianceReport.dto.response.ComplianceReportDto;
-import com.safeye.backend.domain.complianceReport.service.ComplianceReportBatchService;
+import com.safeye.backend.domain.compliance.dto.response.ComplianceReportDto;
+import com.safeye.backend.domain.compliance.service.ComplianceReportBatchService;
 import com.safeye.backend.global.common.ApiResponse;
 import java.time.LocalDate;
 import java.time.ZoneId;

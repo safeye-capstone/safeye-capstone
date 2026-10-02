@@ -1,6 +1,6 @@
-package com.safeye.backend.domain.complianceReport.dto.response;
+package com.safeye.backend.domain.compliance.dto.response;
 
-import com.safeye.backend.domain.complianceReport.entity.ComplianceReport;
+import com.safeye.backend.domain.compliance.entity.ComplianceReport;
 import java.time.LocalDate;
 import java.util.UUID;
 
