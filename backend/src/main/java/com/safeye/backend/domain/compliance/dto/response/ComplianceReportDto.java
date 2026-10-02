@@ -2,6 +2,7 @@ package com.safeye.backend.domain.compliance.dto.response;
 
 import com.safeye.backend.domain.compliance.entity.ComplianceReport;
 import com.safeye.backend.domain.compliance.entity.ReportSummary;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +23,10 @@ public record ComplianceReportDto(
 
     SummaryInfo summary,
     String fileUrl,
-    String reportType
+    String reportType,
+
+    Instant generatedAt,
+    boolean isFinal
 ) {
 
   private static final String SUMMARY_MESSAGE = "Safety(안전), Explanation(설명), Analysis(분석) 아키텍처를 기반으로 분석된 일일 현장 안전 컴플라이언스 종합 통계입니다.";
@@ -66,7 +70,9 @@ public record ComplianceReportDto(
         report.getFalseAlarmCount(),
         summaryInfo,
         report.getFileUrl(),
-        report.getReportType()
+        report.getReportType(),
+        report.getCreatedAt(),
+        report.isFinal()
     );
   }
 }
