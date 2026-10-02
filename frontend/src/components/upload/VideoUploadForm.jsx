@@ -23,7 +23,7 @@ function VideoUploadForm({ onResult }) {
       maxSizeMB={MAX_VIDEO_SIZE_MB}
       hint={`MP4, AVI, MOV • 최대 ${MAX_VIDEO_SIZE_MB}MB`}
       upload={uploadVideo}
-      pendingHint="AI가 영상을 분석하고 있습니다. (영상 길이에 따라 더 오래 걸릴 수 있습니다."
+      pendingHint="AI가 영상을 분석하고 있습니다. 영상 길이에 따라 더 오래 걸릴 수 있습니다."
       onSuccess={handleSuccess}
       renderPreview={(url) => (
         <video

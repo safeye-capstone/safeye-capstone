@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useZones } from "./useZones";
 import { matchZone } from "../utils/zone";
 
@@ -25,6 +25,28 @@ export function useUploadForm({ maxSizeMB, accept, upload, onSuccess }) {
   const [autoMatched, setAutoMatched] = useState(false);
   const [status, setStatus] = useState("idle");
   const [errorMessage, setErrorMessage] = useState(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const submittingRef = useRef(false);
+
+  useEffect(() => {
+    if (status !== "uploading") return;
+
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("beforeunload", warn);
+    };
+  }, [status]);
 
   useEffect(() => {
     if (!previewUrl) return;
@@ -39,6 +61,7 @@ export function useUploadForm({ maxSizeMB, accept, upload, onSuccess }) {
   };
 
   const selectFile = (nextFile) => {
+    if (submittingRef.current) return;
     setStatus("idle");
     setErrorMessage(null);
 
@@ -81,12 +104,13 @@ export function useUploadForm({ maxSizeMB, accept, upload, onSuccess }) {
   };
 
   const selectZone = (id) => {
+    if (submittingRef.current) return;
     setZoneId(id);
     setAutoMatched(false);
   };
 
   const submit = async () => {
-    if (!file) return;
+    if (!file || submittingRef.current) return;
 
     if (!zoneId) {
       setErrorMessage("구역을 선택해주세요.");
@@ -94,6 +118,8 @@ export function useUploadForm({ maxSizeMB, accept, upload, onSuccess }) {
       return;
     }
 
+    submittingRef.current = true;
+    setElapsedSec(0);
     setStatus("uploading");
     setErrorMessage(null);
 
@@ -105,6 +131,8 @@ export function useUploadForm({ maxSizeMB, accept, upload, onSuccess }) {
       setErrorMessage(err.message);
       setStatus("error");
       return;
+    } finally {
+      submittingRef.current = false;
     }
 
     setStatus("success");
@@ -126,6 +154,7 @@ export function useUploadForm({ maxSizeMB, accept, upload, onSuccess }) {
     zoneId,
     autoMatched,
     status,
+    elapsedSec,
     errorMessage,
     selectFile,
     selectZone,

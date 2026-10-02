@@ -10,6 +10,7 @@ function ResultList({
   loading = false,
   error = null,
   emptyMessage = "사진을 올리면 분석 결과가 여기에 표시됩니다.",
+  mediaType = null,
 }) {
   if (loading) {
     return <div className="p-4 text-center text-muted">분석하는 중...</div>;
@@ -52,6 +53,15 @@ function ResultList({
                   <span className="text-xs text-muted">{detectedLabel}</span>
                 )}
               </header>
+
+              {mediaType === "video" && item.fileUrl && (
+                <video
+                  src={item.fileUrl}
+                  controls
+                  preload="metadata"
+                  className="w-full max-h-[320px] rounded-md bg-black mb-3"
+                />
+              )}
 
               <p className="text-lg leading-relaxed text-ink whitespace-pre-wrap break-keep">
                 {item.vlmDescription || "설명을 생성하지 못했습니다."}

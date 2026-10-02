@@ -1,6 +1,12 @@
 import { useId, useRef } from "react";
 import { useUploadForm } from "../../hooks/useUploadForm";
 
+const formatElapsed = (sec) => {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m > 0 ? `${m}분 ${String(s).padStart(2, "0")}초` : `${s}초`;
+};
+
 function FileUploadForm({
   title,
   accept,
@@ -18,7 +24,10 @@ function FileUploadForm({
 
   const uploading = form.status === "uploading";
 
-  const openPicker = () => inputRef.current?.click();
+  const openPicker = () => {
+    if (uploading) return;
+    inputRef.current?.click();
+  };
 
   const handleDropzoneKeyDown = (e) => {
     if (e.target !== e.currentTarget) return;
@@ -60,12 +69,17 @@ function FileUploadForm({
       <div
         role="button"
         tabIndex={0}
+        aria-disabled={uploading}
         onClick={openPicker}
         onKeyDown={handleDropzoneKeyDown}
-        className={`border-2 border-dashed rounded-[10px] p-8 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors ${
+        className={`border-2 border-dashed rounded-[10px] p-8 flex flex-col items-center justify-center gap-2 transition-colors ${
+          uploading ? "cursor-not-allowed" : "cursor-pointer"
+        } ${
           form.fileError
             ? "border-danger bg-danger-bg"
-            : "border-border hover:border-accent hover:bg-accent-bg"
+            : uploading
+              ? "border-border"
+              : "border-border hover:border-accent hover:bg-accent-bg"
         }`}
       >
         {form.previewUrl ? (
@@ -103,7 +117,7 @@ function FileUploadForm({
             id={zoneSelectId}
             value={form.zoneId}
             onChange={(e) => form.selectZone(e.target.value)}
-            disabled={form.zonesLoading}
+            disabled={form.zonesLoading || uploading}
             className="w-full border border-border rounded-[10px] px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-accent disabled:opacity-50"
           >
             <option value="">
@@ -142,8 +156,17 @@ function FileUploadForm({
         {uploading ? "분석 중..." : "제출"}
       </button>
 
-      {uploading && pendingHint && (
-        <p className="text-xs text-muted mt-2">{pendingHint}</p>
+      {uploading && (
+        <div className="text-xs text-muted mt-2">
+          {pendingHint && <p>{pendingHint}</p>}
+          <p className="mt-1">
+            경과 시간{" "}
+            <span className="font-semibold text-ink tabular-nums">
+              {formatElapsed(form.elapsedSec)}
+            </span>
+            {" · "}분석이 끝날 때까지 이 페이지를 벗어나지 마세요.
+          </p>
+        </div>
       )}
 
       {form.status === "success" && (
