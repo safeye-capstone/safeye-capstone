@@ -86,7 +86,7 @@ public class VlmApiService {
         mimeType = MediaType.IMAGE_JPEG_VALUE;
       }
 
-      bodyBuilder.part("image", new FileSystemResource(file))
+      bodyBuilder.part(IMAGE_PART, new FileSystemResource(file))
           .contentType(MediaType.parseMediaType(mimeType));
 
       bodyBuilder.part("delay", 0);

@@ -3,17 +3,23 @@ package com.safeye.backend.domain.compliance.entity;
 import com.safeye.backend.global.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "compliance_reports")
+@Table(name = "compliance_reports",
+uniqueConstraints = @UniqueConstraint(
+    name = "uk_compliance_report_type_start_date",
+    columnNames = {"report_type", "start_date"}
+))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -47,9 +53,9 @@ public class ComplianceReport extends BaseEntity {
   @Column(nullable = false)
   private Integer falseAlarmCount;
 
-  @Lob
-  @Column(columnDefinition = "TEXT")
-  private String summary;
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(columnDefinition = "jsonb")
+  private ReportSummary summary;
 
   // TODO: S3 연동 시 nullable = false로 지정
   @Column(nullable = true, length = 1000)
@@ -62,7 +68,7 @@ public class ComplianceReport extends BaseEntity {
       String title, LocalDate targetDate,
       Integer total, Integer critical, Integer warning,
       Integer info, Integer resolved, Integer falseAlarm,
-      String summaryJson) {
+      ReportSummary summary) {
 
     return ComplianceReport.builder()
         .title(title)
@@ -74,7 +80,7 @@ public class ComplianceReport extends BaseEntity {
         .infoCount(info)
         .resolvedCount(resolved)
         .falseAlarmCount(falseAlarm)
-        .summary(summaryJson)
+        .summary(summary)
         .fileUrl(null)
         .reportType("DAILY")
         .build();
