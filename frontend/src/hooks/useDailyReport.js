@@ -40,30 +40,40 @@ function toReportError(err) {
  * @param {string} [date] - "2026-09-16" 형식. 생략하면 서버가 어제로 처리합니다.
  */
 export function useDailyReport(date) {
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const requestKey = `${date ?? "latest"}#${reloadKey}`;
+
   const [state, setState] = useState({
+    key: null,
     report: null,
-    loading: true,
     error: null,
   });
-  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
 
     getDailyReport(date, { signal: controller.signal })
-      .then((report) => setState({ report, loading: false, error: null }))
+      .then((report) => {
+        if (controller.signal.aborted) return;
+        setState({ key: requestKey, report, error: null });
+      })
       .catch((err) => {
         if (controller.signal.aborted) return;
-        setState({ report: null, loading: false, error: toReportError(err) });
+        setState({ key: requestKey, report: null, error: toReportError(err) });
       });
 
     return () => controller.abort();
-  }, [date, reloadKey]);
+  }, [date, requestKey]);
 
-  const reload = useCallback(() => {
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-    setReloadKey((k) => k + 1);
-  }, []);
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
-  return { ...state, reload };
+  const loading = state.key !== requestKey;
+
+  return {
+    report: loading ? null : state.report,
+    error: loading ? null : state.error,
+    loading,
+    reload,
+  };
 }
