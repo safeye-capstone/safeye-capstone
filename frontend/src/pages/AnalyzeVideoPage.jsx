@@ -19,6 +19,7 @@ function AnalyzeVideoPage() {
         <div className="flex-1 min-w-0 w-full">
           <ResultList
             results={results}
+            mediaType="video"
             emptyMessage="영상을 올리면 분석 결과가 여기에 표시됩니다."
           />
         </div>
