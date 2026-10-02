@@ -23,7 +23,23 @@ async function request(path, { method = "GET", body, signal } = {}) {
     });
   }
 
-  const json = await res.json().catch(() => null);
+  const text = await res.text();
+
+  let json = null;
+
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      if (res.ok) {
+        throw new ApiError({
+          status: res.status,
+          code: "INVALID_RESPONSE",
+          message: "서버 응답 형식이 올바르지 않습니다.",
+        });
+      }
+    }
+  }
 
   if (!res.ok || json?.success == false) {
     throw new ApiError({
