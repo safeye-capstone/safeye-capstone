@@ -9,6 +9,7 @@ function PhotoUploadForm({ onResult }) {
   const { pushAlert } = useOutletContext() ?? {};
 
   const handleSuccess = (data) => {
+    if (!data) return;
     onResult?.(data);
 
     if (isAlertSeverity(data.severity)) {

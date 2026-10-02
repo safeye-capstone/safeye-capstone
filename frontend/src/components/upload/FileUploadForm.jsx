@@ -12,7 +12,7 @@ function FileUploadForm({
   onSuccess,
   renderPreview,
 }) {
-  const form = useUploadForm({ maxSizeMB, upload, onSuccess });
+  const form = useUploadForm({ maxSizeMB, accept, upload, onSuccess });
   const inputRef = useRef(null);
   const zoneSelectId = useId();
 

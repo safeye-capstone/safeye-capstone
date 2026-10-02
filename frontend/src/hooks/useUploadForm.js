@@ -4,7 +4,18 @@ import { matchZone } from "../utils/zone";
 
 const toMB = (bytes) => bytes / (1024 * 1024);
 
-export function useUploadForm({ maxSizeMB, upload, onSuccess }) {
+const parseExts = (accept = "") =>
+  accept
+    .split(",")
+    .map((ext) => ext.trim().toLowerCase())
+    .filter(Boolean);
+
+const getExt = (filename) => {
+  const dot = filename.lastIndexOf(".");
+  return dot === -1 ? "" : filename.slice(dot).toLowerCase();
+};
+
+export function useUploadForm({ maxSizeMB, accept, upload, onSuccess }) {
   const { zones, loading: zonesLoading, error: zonesError } = useZones();
 
   const [file, setFile] = useState(null);
@@ -33,6 +44,20 @@ export function useUploadForm({ maxSizeMB, upload, onSuccess }) {
 
     if (!nextFile) {
       setFileError(null);
+      clearFile();
+      return;
+    }
+
+    const allowedExts = parseExts(accept);
+    if (
+      allowedExts.length > 0 &&
+      !allowedExts.includes(getExt(nextFile.name))
+    ) {
+      setFileError(
+        `지원하지 않는 파일 형식입니다. ${allowedExts
+          .map((ext) => ext.slice(1).toUpperCase())
+          .join(", ")} 파일만 올릴 수 있습니다.`,
+      );
       clearFile();
       return;
     }
@@ -72,14 +97,21 @@ export function useUploadForm({ maxSizeMB, upload, onSuccess }) {
     setStatus("uploading");
     setErrorMessage(null);
 
+    let data;
     try {
-      const data = await upload(file, zoneId);
-      onSuccess?.(data);
-      setStatus("success");
+      data = await upload(file, zoneId);
     } catch (err) {
       console.error("업로드 실패:", err);
       setErrorMessage(err.message);
       setStatus("error");
+      return;
+    }
+
+    setStatus("success");
+    try {
+      onSuccess?.(data);
+    } catch (err) {
+      console.error("분석 결과 처리 중 오류:", err);
     }
   };
 
