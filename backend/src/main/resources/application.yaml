@@ -26,6 +26,7 @@ logging:
   level:
     org.hibernate.SQL: debug
     com.safeye.backend: trace
+    org.hibernate.orm.jdbc.bind: trace
 
 vlm:
   server:
