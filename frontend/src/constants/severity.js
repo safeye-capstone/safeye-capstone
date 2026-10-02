@@ -19,3 +19,49 @@ export const UNKNOWN_BADGE = {
 };
 
 export const SEVERITY_ORDER = ["CRITICAL", "WARNING", "INFO"];
+
+export const SEVERITY_TONE = {
+  CRITICAL: {
+    text: "text-danger",
+    border: "border-danger",
+    box: "border-danger bg-danger-bg",
+    solid: "bg-danger",
+  },
+  WARNING: {
+    text: "text-warn",
+    border: "border-warn",
+    box: "border-warn bg-warn-bg",
+    solid: "bg-warn",
+  },
+  INFO: {
+    text: "text-safe",
+    border: "border-border",
+    box: "border-border bg-white",
+    solid: "bg-safe",
+  },
+};
+
+const UNKNOWN_TONE = {
+  text: "text-muted",
+  border: "border-border",
+  box: "border-border bg-white",
+  solid: "bg-muted",
+};
+
+export function normalizeSeverity(severity) {
+  if (severity?.startsWith("CRITICAL")) return "CRITICAL";
+  return severity;
+}
+
+export function getSeverityBadge(severity) {
+  return SEVERITY_BADGE[normalizeSeverity(severity)] ?? UNKNOWN_BADGE;
+}
+
+export function getSeverityTone(severity) {
+  return SEVERITY_TONE[normalizeSeverity(severity)] ?? UNKNOWN_TONE;
+}
+
+export function isAlertSeverity(severity) {
+  const s = normalizeSeverity(severity);
+  return s === "CRITICAL" || s === "WARNING";
+}

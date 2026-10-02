@@ -1,10 +1,16 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";
-import SeverityBadge from "../components/SeverityBadge";
-import { SEVERITY_BADGE, SEVERITY_ORDER } from "../constants/severity";
+import SeverityBadge from "../components/common/SeverityBadge";
+import {
+  SEVERITY_BADGE,
+  SEVERITY_ORDER,
+  normalizeSeverity,
+} from "../constants/severity";
 import { MOCK_HISTORY } from "../fixtures/mockHistory";
-import { formatDate } from "../utils/formatDate";
+import { formatDate } from "../utils/date";
+import SampleDataNotice from "../components/common/SampleDataNotice";
+import { FEATURE_RESULT_DETAIL } from "../constants/config";
 
 const PAGE_SIZE = 15;
 
@@ -25,7 +31,9 @@ function HistoryPage() {
     () =>
       selected.length === 0
         ? MOCK_HISTORY
-        : MOCK_HISTORY.filter((item) => selected.includes(item.severity)),
+        : MOCK_HISTORY.filter((item) =>
+            selected.includes(normalizeSeverity(item.severity)),
+          ),
     [selected],
   );
 
@@ -37,9 +45,9 @@ function HistoryPage() {
     <div className="w-full">
       <PageHeader />
 
-      <div className="mb-4 px-3 py-2 rounded-md bg-warn-bg border border-warn text-xs text-warn">
+      <SampleDataNotice>
         현재 화면은 샘플 데이터입니다. 조회 API 연동 후 실제 이력이 표시됩니다.
-      </div>
+      </SampleDataNotice>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {SEVERITY_ORDER.map((severity) => {
@@ -89,13 +97,18 @@ function HistoryPage() {
                 </th>
                 <th className="px-4 py-3 font-semibold w-36">구역</th>
                 <th className="px-4 py-3 font-semibold">분석 내용</th>
-                <th className="px-4 py-3 font-semibold w-20" />
+                {FEATURE_RESULT_DETAIL && (
+                  <th className="px-4 py-3 font-semibold w-20" />
+                )}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-muted">
+                  <td
+                    colSpan={FEATURE_RESULT_DETAIL ? 5 : 4}
+                    className="px-4 py-10 text-center text-muted"
+                  >
                     조건에 맞는 이력이 없습니다.
                   </td>
                 </tr>
@@ -119,14 +132,16 @@ function HistoryPage() {
                         {item.vlmDescription}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        to={`/history/${item.id}`}
-                        className="text-xs font-semibold text-accent no-underline whitespace-nowrap"
-                      >
-                        상세
-                      </Link>
-                    </td>
+                    {FEATURE_RESULT_DETAIL && (
+                      <td className="px-4 py-3 text-right">
+                        <Link
+                          to={`/history/${item.id}`}
+                          className="text-xs font-semibold text-accent no-underline whitespace-nowrap"
+                        >
+                          상세
+                        </Link>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}

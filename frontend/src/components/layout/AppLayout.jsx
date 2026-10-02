@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
-import AlertToast from "../AlertToast";
+import AlertToast from "../common/AlertToast";
 import { useDangerAlerts } from "../../hooks/useDangerAlerts";
 
 function AppLayout() {

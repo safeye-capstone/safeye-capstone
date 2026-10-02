@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { API_BASE } from "../constants/config";
+import { createAlertStream } from "../api/alerts";
+import { createId } from "../utils/id";
+
+const MAX_ALERTS = 100;
+const INITIAL_RETRY_MS = 3000;
+const MAX_RETRY_MS = 30000;
 
 export function useDangerAlerts() {
   const [alerts, setAlerts] = useState([]);
@@ -9,32 +14,55 @@ export function useDangerAlerts() {
   const addAlert = useCallback((event) => {
     if (!event) return;
 
-    const key = event.id ?? `manual-${Date.now()}`;
-    if (seenIdsRef.current.has(key)) return;
-    seenIdsRef.current.add(key);
+    const id = event.id ?? createId("manual");
 
-    setAlerts((prev) => [{ ...event, id: key }, ...prev]);
+    if (seenIdsRef.current.has(id)) return;
+
+    seenIdsRef.current.add(id);
+
+    setAlerts((prev) => [{ ...event, id }, ...prev].slice(0, MAX_ALERTS));
   }, []);
 
   useEffect(() => {
-    const url = `${API_BASE}/api/alerts/subscribe`;
-    const source = new EventSource(url);
+    let source = null;
+    let retryTimer = null;
+    let retryDelay = INITIAL_RETRY_MS;
+    let disposed = false;
 
-    source.addEventListener("connected", () => {
-      setConnected(true);
-    });
+    const connect = () => {
+      if (disposed) return;
+      source = createAlertStream();
 
-    source.addEventListener("danger", (e) => {
-      console.log("SSE 수신:", e.data);
-      addAlert(JSON.parse(e.data));
-    });
+      source.addEventListener("connected", () => {
+        retryDelay = INITIAL_RETRY_MS;
+        setConnected(true);
+      });
 
-    source.onerror = () => {
-      setConnected(false);
+      source.addEventListener("danger", (e) => {
+        try {
+          addAlert(JSON.parse(e.data));
+        } catch (err) {
+          console.error("SSE 데이터 파싱 실패:", e.data, err);
+        }
+      });
+
+      source.onerror = () => {
+        setConnected(false);
+
+        if (source.readyState !== EventSource.CLOSED) return;
+
+        source.close();
+        retryTimer = setTimeout(connect, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, MAX_RETRY_MS);
+      };
     };
 
+    connect();
+
     return () => {
-      source.close();
+      disposed = true;
+      clearTimeout(retryTimer);
+      source?.close();
     };
   }, [addAlert]);
 

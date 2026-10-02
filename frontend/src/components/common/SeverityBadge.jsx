@@ -1,7 +1,7 @@
-import { SEVERITY_BADGE, UNKNOWN_BADGE } from "../constants/severity";
+import { getSeverityBadge } from "../../constants/severity";
 
 function SeverityBadge({ severity }) {
-  const style = SEVERITY_BADGE[severity] ?? UNKNOWN_BADGE;
+  const style = getSeverityBadge(severity);
 
   return (
     <span
