@@ -3,6 +3,7 @@ import { formatDate } from "../../utils/date";
 import { getSeverityTone } from "../../constants/severity";
 import SeverityBadge from "../common/SeverityBadge";
 import { parseRegulations } from "../../utils/regulation";
+import { FEATURE_RESULT_DETAIL } from "../../constants/config";
 
 function ResultList({
   results = [],
@@ -85,12 +86,14 @@ function ResultList({
                 </section>
               )}
 
-              <Link
-                to={`/history/${item.id}`}
-                className="inline-block mt-3 text-xs font-semibold text-accent no-underline"
-              >
-                상세 보기
-              </Link>
+              {FEATURE_RESULT_DETAIL && (
+                <Link
+                  to={`/history/${item.id}`}
+                  className="inline-block mt-3 text-xs font-semibold text-accent no-underline"
+                >
+                  상세 보기
+                </Link>
+              )}
             </article>
           );
         })

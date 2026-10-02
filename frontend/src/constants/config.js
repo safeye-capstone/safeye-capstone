@@ -6,3 +6,5 @@ if (!import.meta.env.VITE_API_URL) {
 
 export const MAX_IMAGE_SIZE_MB = 10;
 export const MAX_VIDEO_SIZE_MB = 50;
+
+export const FEATURE_RESULT_DETAIL = false;
