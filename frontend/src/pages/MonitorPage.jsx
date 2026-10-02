@@ -3,8 +3,8 @@ import { useOutletContext } from "react-router-dom";
 import { Play, Square, Radio, AlertTriangle } from "lucide-react";
 import { startVirtualEdge, stopVirtualEdge } from "../api/virtualEdge";
 import { formatTime } from "../utils/date";
-import { getSeverityTone } from "../constants/severity";
-import SeverityBadge from "../components/common/SeverityBadge";
+import { getDecisionView } from "../constants/decisionState";
+import DecisionBadge from "../components/common/DecisionBadge";
 import PageHeader from "../components/layout/PageHeader";
 
 export default function MonitorPage() {
@@ -95,11 +95,11 @@ export default function MonitorPage() {
               <li key={alert.id} className="flex gap-4 px-5 py-4">
                 <AlertTriangle
                   size={18}
-                  className={`mt-0.5 shrink-0 ${getSeverityTone(alert.severity).text}`}
+                  className={`mt-0.5 shrink-0 ${getDecisionView(alert).tone.text}`}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <SeverityBadge severity={alert.severity} />
+                    <DecisionBadge event={alert} />
                     <span className="text-sm font-medium text-ink">
                       {alert.zoneName ?? "구역 미상"}
                     </span>
