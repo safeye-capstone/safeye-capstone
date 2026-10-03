@@ -28,8 +28,12 @@ function toReportError(err) {
  * - report: 리포트 (없으면 null)
  * - notGenerated: 리포트가 아직 생성되지 않음 (에러 아님)
  * - error: 조회 실패 { type, message }
- * - generate: 오늘 리포트 생성/재집계. 성공하면 POST 응답으로 report를 바꿉니다.
- * - generating / generateError: 생성 요청 상태. 실패해도 기존 report는 유지됩니다.
+ * - generate: 오늘 리포트 생성/재집계. 결과를 { status, targetDate? }로 돌려줍니다.
+ *   - APPLIED: POST 응답으로 report를 바꿈
+ *   - DATE_CHANGED: 서버의 오늘이 화면 날짜와 달라 반영하지 않음 (targetDate로 이동 필요)
+ *   - STALE: 요청 중에 날짜를 옮겨서 반영하지 않음
+ *   - FAILED: 요청 실패. 기존 report는 유지됩니다.
+ * - generating / generateError: 생성 요청 상태
  */
 export function useDailyReport(date) {
   const [reloadKey, setReloadKey] = useState(0);
@@ -45,11 +49,13 @@ export function useDailyReport(date) {
   const [gen, setGen] = useState({ key: null, pending: false, error: null });
 
   const requestKeyRef = useRef(requestKey);
+  const dateRef = useRef(date);
   const generatingRef = useRef(false);
 
   useEffect(() => {
     requestKeyRef.current = requestKey;
-  }, [requestKey]);
+    dateRef.current = date;
+  }, [requestKey, date]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -86,31 +92,42 @@ export function useDailyReport(date) {
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   const generate = useCallback(async () => {
-    if (generatingRef.current) return;
+    if (generatingRef.current) return null;
     generatingRef.current = true;
 
     const startedKey = requestKeyRef.current;
+    const startedDate = dateRef.current;
     setGen({ key: startedKey, pending: true, error: null });
 
     try {
       const report = await createTodayReport();
-
-      // 요청 중에 날짜를 바꿨다면 화면에 반영하지 않습니다.
-      if (requestKeyRef.current === startedKey) {
-        setState({
-          key: startedKey,
-          report,
-          notGenerated: false,
-          error: null,
-        });
-      }
       setGen({ key: startedKey, pending: false, error: null });
+
+      // 요청 중에 날짜를 옮겼다면 화면에 반영하지 않습니다.
+      if (requestKeyRef.current !== startedKey) {
+        return { status: "STALE" };
+      }
+
+      // 서버는 항상 서버 시각의 오늘을 집계합니다.
+      // 자정을 넘겨 다른 날짜의 리포트가 오면 지금 화면에 넣지 않습니다.
+      if (report?.targetDate && report.targetDate !== startedDate) {
+        return { status: "DATE_CHANGED", targetDate: report.targetDate };
+      }
+
+      setState({
+        key: startedKey,
+        report,
+        notGenerated: false,
+        error: null,
+      });
+      return { status: "APPLIED" };
     } catch (err) {
       setGen({
         key: startedKey,
         pending: false,
         error: err.message ?? "리포트를 생성하지 못했습니다.",
       });
+      return { status: "FAILED" };
     } finally {
       generatingRef.current = false;
     }
