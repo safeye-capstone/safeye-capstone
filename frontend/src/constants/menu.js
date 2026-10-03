@@ -43,7 +43,7 @@ export const MENU_GROUPS = [
         label: "영상 분석",
         path: "/analyze/video",
         icon: Clapperboard,
-        desc: "현장 영상을 업로드해 프레임 단위로 위험 상황을 분석합니다.",
+        desc: "현장 영상을 업로드해 영상 전체의 위험 상황을 분석합니다.",
         ready: true,
       },
       {
@@ -72,7 +72,7 @@ export const MENU_GROUPS = [
         label: "자동 리포트",
         path: "/report",
         icon: FileBarChart2,
-        desc: "매일 자정에 집계된 전날의 현장 안전 통계를 확인합니다.",
+        desc: "일별 현장 안전 통계를 확인합니다. 오늘 리포트는 중간 집계로 생성할 수 있습니다.",
         ready: true,
       },
     ],
