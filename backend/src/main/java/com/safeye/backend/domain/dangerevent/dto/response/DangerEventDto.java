@@ -2,6 +2,7 @@ package com.safeye.backend.domain.dangerevent.dto.response;
 
 import com.safeye.backend.domain.dangerevent.entity.DangerEvent;
 import com.safeye.backend.domain.dangerevent.entity.Severity;
+import com.safeye.backend.domain.dangerevent.entity.VlmDecisionState;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -9,6 +10,7 @@ import java.util.UUID;
 public record DangerEventDto(
     UUID id,
     boolean isDanger,
+    VlmDecisionState decisionState,
     String zoneName,
     Severity severity,
     String fileUrl,
@@ -30,6 +32,7 @@ public record DangerEventDto(
     return new DangerEventDto(
         event.getId(),
         calculatedIsDanger,
+        VlmDecisionState.from(event.getRagMetadata()),
         event.getWorkZone().getZoneName(),
         event.getSeverity(),
         event.getFileUrl(),
