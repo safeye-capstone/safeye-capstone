@@ -17,22 +17,33 @@ function getContext() {
 
 /**
  * 브라우저는 사용자가 페이지를 한 번 조작하기 전에는 소리를 막는다.
- * 첫 클릭·키 입력 때 불러서 미리 풀어둔다.
+ * 첫 클릭·키 입력 때 불러서 풀어둔다.
+ * 반환: 소리를 낼 수 있는 상태가 됐으면 true
  */
-export function unlockSiren() {
+export async function unlockSiren() {
   const ctx = getContext();
-  if (ctx?.state === "suspended") {
-    ctx.resume().catch(() => {});
+  if (!ctx) return false;
+
+  if (ctx.state === "suspended") {
+    try {
+      await ctx.resume();
+    } catch {
+      return false;
+    }
   }
+  return ctx.state === "running";
 }
 
-/** 사이렌을 한 번 울린다. 이미 울리는 중이면 겹쳐 울리지 않는다 */
+/**
+ * 사이렌을 한 번 울린다. 이미 울리는 중이면 겹쳐 울리지 않는다.
+ * 반환: 소리가 났으면(또는 이미 울리는 중이면) true, 브라우저가 막았으면 false
+ */
 export function playSiren() {
   const ctx = getContext();
-  if (!ctx || ctx.state !== "running") return;
+  if (!ctx || ctx.state !== "running") return false;
 
   const now = ctx.currentTime;
-  if (now < playingUntil) return;
+  if (now < playingUntil) return true;
   playingUntil = now + SIREN_SEC;
 
   const oscillator = ctx.createOscillator();
@@ -57,4 +68,6 @@ export function playSiren() {
   gain.connect(ctx.destination);
   oscillator.start(now);
   oscillator.stop(now + SIREN_SEC);
+
+  return true;
 }
