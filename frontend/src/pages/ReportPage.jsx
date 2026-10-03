@@ -6,7 +6,7 @@ import GenerateReportButton from "../components/report/GenerateReportButton";
 import ZoneStatsTable from "../components/report/ZoneStatsTable";
 import { useDailyReport } from "../hooks/useDailyReport";
 import { useTodayKST } from "../hooks/useTodayKST";
-import { addDays, formatReportDate } from "../utils/date";
+import { addDays, formatReportDate, formatDate } from "../utils/date";
 import { SEVERITY_BADGE } from "../constants/severity";
 import { DECISION_STATES } from "../constants/decisionState";
 import { FEATURE_RESOLUTION_STATS } from "../constants/config";
@@ -149,6 +149,13 @@ function ReportPage() {
         <div className="flex flex-col gap-4">
           {summary?.message && (
             <p className="text-sm text-ink">{summary.message}</p>
+          )}
+
+          {report.generatedAt && (
+            <p className="text-xs text-muted">
+              {report.isFinal ? "최종 리포트" : "중간 집계"} ·{" "}
+              {formatDate(report.generatedAt)} 기준
+            </p>
           )}
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
