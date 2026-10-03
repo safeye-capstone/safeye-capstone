@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createAlertStream } from "../api/alerts";
 import { createId } from "../utils/id";
+import { getAlertKind } from "../constants/decisionState";
 
 const MAX_ALERTS = 100;
 const INITIAL_RETRY_MS = 3000;
@@ -13,6 +14,10 @@ export function useDangerAlerts() {
 
   const addAlert = useCallback((event) => {
     if (!event) return;
+
+    // 확정 위험·검토 대기만 경보로 다룬다.
+    // 판정 값이 없으면 severity가 INFO가 아닌 것만 (getAlertKind가 판단)
+    if (!getAlertKind(event)) return;
 
     const id = event.id ?? createId("manual");
 

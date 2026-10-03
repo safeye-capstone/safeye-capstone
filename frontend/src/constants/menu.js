@@ -43,7 +43,7 @@ export const MENU_GROUPS = [
         label: "영상 분석",
         path: "/analyze/video",
         icon: Clapperboard,
-        desc: "현장 영상을 업로드해 프레임 단위로 위험 상황을 분석합니다.",
+        desc: "현장 영상을 업로드해 영상 전체의 위험 상황을 분석합니다.",
         ready: true,
       },
       {

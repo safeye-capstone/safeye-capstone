@@ -29,9 +29,20 @@ function pick(arr, i) {
   return arr[i % arr.length];
 }
 
+// severity에 맞는 판정 상태를 붙인다. 일부는 과거 데이터처럼 판정 값 없이 둔다
+function decisionFor(severity, i) {
+  if (i % 9 === 0) return null;
+  if (severity === "CRITICAL") return "CONFIRMED";
+  if (severity === "WARNING") {
+    return i % 2 === 0 ? "CONFIRMED" : "REVIEW_REQUIRED";
+  }
+  return i % 5 === 0 ? "REJECTED" : "NO_DETECTION";
+}
+
 export const MOCK_HISTORY = Array.from({ length: 45 }, (_, i) => {
   const severity = pick(SEVERITY_POOL, i * 3 + 1);
   const samples = SAMPLES[severity];
+  const decisionState = decisionFor(severity, i);
 
   // 최근 것부터 약 40분 간격
   const detectedAt = new Date(
@@ -43,6 +54,7 @@ export const MOCK_HISTORY = Array.from({ length: 45 }, (_, i) => {
     zoneName: pick(ZONES, i * 2 + 1),
     severity,
     vlmDescription: pick(samples, i),
+    ragMetadata: decisionState ? { vlm_decision_state: decisionState } : null,
     detectedAt,
     isResolved: severity !== "INFO" && i % 4 === 0,
   };
