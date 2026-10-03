@@ -5,7 +5,8 @@ import SeverityBar from "../components/report/SeverityBar";
 import GenerateReportButton from "../components/report/GenerateReportButton";
 import ZoneStatsTable from "../components/report/ZoneStatsTable";
 import { useDailyReport } from "../hooks/useDailyReport";
-import { addDays, formatReportDate, getTodayKST } from "../utils/date";
+import { useTodayKST } from "../hooks/useTodayKST";
+import { addDays, formatReportDate } from "../utils/date";
 import { SEVERITY_BADGE } from "../constants/severity";
 import { DECISION_STATES } from "../constants/decisionState";
 import { FEATURE_RESOLUTION_STATS } from "../constants/config";
@@ -29,7 +30,7 @@ function StatCard({ label, value, unit = "건", muted = false, note }) {
 }
 
 function ReportPage() {
-  const [today] = useState(getTodayKST);
+  const [today, syncToday] = useTodayKST();
   const [date, setDate] = useState(today);
   const isToday = date === today;
 
@@ -43,6 +44,16 @@ function ReportPage() {
     generating,
     generateError,
   } = useDailyReport(date);
+
+  const handleGenerate = async () => {
+    const result = await generate();
+
+    // 자정을 넘겨 서버가 새 날짜를 집계한 경우, 그 날짜로 이동합니다.
+    if (result?.status === "DATE_CHANGED") {
+      syncToday();
+      setDate(result.targetDate);
+    }
+  };
 
   const summary = report?.summary;
   const decisionCounts = summary?.decisionStateCounts ?? {};
@@ -93,7 +104,7 @@ function ReportPage() {
           generating={generating}
           disabled={loading}
           error={generateError}
-          onGenerate={generate}
+          onGenerate={handleGenerate}
         />
       )}
 
