@@ -72,7 +72,7 @@ export const MENU_GROUPS = [
         label: "자동 리포트",
         path: "/report",
         icon: FileBarChart2,
-        desc: "매일 자정에 집계된 전날의 현장 안전 통계를 확인합니다.",
+        desc: "일별 현장 안전 통계를 확인합니다. 오늘 리포트는 중간 집계로 생성할 수 있습니다.",
         ready: true,
       },
     ],

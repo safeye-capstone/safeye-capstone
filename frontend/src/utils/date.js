@@ -19,12 +19,6 @@ export function formatReportDate(dateString) {
   return `${y}년 ${m}월 ${d}일 (${day})`;
 }
 
-export function getYesterday() {
-  const now = new Date();
-  now.setDate(now.getDate() - 1);
-  return toDateString(now);
-}
-
 export function start0fWeek(date = new Date()) {
   const d = new Date(date);
   const daySinceMonday = (d.getDay() + 6) % 7;
@@ -60,4 +54,16 @@ export function formatTime(value) {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+export function getTodayKST() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const pick = (type) => parts.find((p) => p.type === type).value;
+  return `${pick("year")}-${pick("month")}-${pick("day")}`;
 }

@@ -2,9 +2,16 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import PageHeader from "../components/layout/PageHeader";
 import SeverityBar from "../components/report/SeverityBar";
+import GenerateReportButton from "../components/report/GenerateReportButton";
+import ZoneStatsTable from "../components/report/ZoneStatsTable";
 import { useDailyReport } from "../hooks/useDailyReport";
-import { addDays, formatReportDate, getYesterday } from "../utils/date";
+import { useTodayKST } from "../hooks/useTodayKST";
+import { addDays, formatReportDate, formatDate } from "../utils/date";
 import { SEVERITY_BADGE } from "../constants/severity";
+import { DECISION_STATES } from "../constants/decisionState";
+import { FEATURE_RESOLUTION_STATS } from "../constants/config";
+
+const PENDING_NOTE = "집계 예정";
 
 function StatCard({ label, value, unit = "건", muted = false, note }) {
   return (
@@ -23,18 +30,34 @@ function StatCard({ label, value, unit = "건", muted = false, note }) {
 }
 
 function ReportPage() {
-  const [date, setDate] = useState(undefined);
-  const { report, loading, error } = useDailyReport(date);
+  const [today, syncToday] = useTodayKST();
+  const [date, setDate] = useState(today);
+  const isToday = date === today;
 
-  const maxDate = getYesterday();
-  const shown = date ?? report?.targetDate ?? (error ? maxDate : undefined);
+  const {
+    report,
+    notGenerated,
+    error,
+    loading,
+    reload,
+    generate,
+    generating,
+    generateError,
+  } = useDailyReport(date);
 
-  const atLatest = date === undefined || shown >= maxDate;
+  const handleGenerate = async () => {
+    const result = await generate();
 
-  const move = (days) => {
-    if (!shown) return;
-    setDate(addDays(shown, days));
+    // 자정을 넘겨 서버가 새 날짜를 집계한 경우, 그 날짜로 이동합니다.
+    if (result?.status === "DATE_CHANGED") {
+      syncToday();
+      setDate(result.targetDate);
+    }
   };
+
+  const summary = report?.summary;
+  const decisionCounts = summary?.decisionStateCounts ?? {};
+  const pending = !FEATURE_RESOLUTION_STATS;
 
   return (
     <div className="w-full max-w-4xl">
@@ -43,8 +66,7 @@ function ReportPage() {
       <div className="flex items-center gap-3 mb-5">
         <button
           type="button"
-          onClick={() => move(-1)}
-          disabled={!shown}
+          onClick={() => setDate(addDays(date, -1))}
           className="p-1.5 rounded-md border border-border bg-white disabled:opacity-40"
           aria-label="이전 날짜"
         >
@@ -52,29 +74,39 @@ function ReportPage() {
         </button>
 
         <span className="text-sm font-bold text-ink min-w-[11rem] text-center">
-          {shown ? formatReportDate(shown) : "불러오는 중..."}
+          {formatReportDate(date)}
         </span>
 
         <button
           type="button"
-          onClick={() => move(1)}
-          disabled={!shown || atLatest}
+          onClick={() => setDate(addDays(date, 1))}
+          disabled={date >= today}
           className="p-1.5 rounded-md border border-border bg-white disabled:opacity-40"
           aria-label="다음 날짜"
         >
           <ChevronRight size={16} />
         </button>
 
-        {date !== undefined && (
+        {!isToday && (
           <button
             type="button"
-            onClick={() => setDate(undefined)}
+            onClick={() => setDate(today)}
             className="text-xs text-muted underline ml-1"
           >
-            최신으로
+            오늘로
           </button>
         )}
       </div>
+
+      {isToday && (
+        <GenerateReportButton
+          hasReport={Boolean(report)}
+          generating={generating}
+          disabled={loading}
+          error={generateError}
+          onGenerate={handleGenerate}
+        />
+      )}
 
       {loading && (
         <div className="border border-border rounded-lg bg-white p-10 text-center text-muted">
@@ -82,19 +114,50 @@ function ReportPage() {
         </div>
       )}
 
+      {!loading && notGenerated && (
+        <div className="border border-dashed border-border rounded-lg bg-white p-10 text-center">
+          <p className="text-sm text-muted">
+            아직 리포트가 생성되지 않았습니다.
+          </p>
+          <p className="text-xs text-muted mt-2">
+            {isToday
+              ? "위의 버튼으로 현재까지의 중간 집계를 만들 수 있습니다."
+              : "리포트는 매일 자정에 전날 데이터를 기준으로 생성됩니다."}
+          </p>
+        </div>
+      )}
+
       {!loading && error && (
-        <div className="border border-border rounded-lg bg-white p-10 text-center">
+        <div
+          role="alert"
+          className="border border-border rounded-lg bg-white p-10 text-center"
+        >
           <p className="text-sm text-muted">{error.message}</p>
-          {error.type === "NOT_GENERATED" && (
-            <p className="text-xs text-muted mt-2">
-              리포트는 매일 자정에 전날 데이터를 기준으로 생성됩니다.
-            </p>
+          {error.type === "UNKNOWN" && (
+            <button
+              type="button"
+              onClick={reload}
+              className="text-xs text-muted underline mt-2"
+            >
+              다시 시도
+            </button>
           )}
         </div>
       )}
 
       {!loading && !error && report && (
         <div className="flex flex-col gap-4">
+          {summary?.message && (
+            <p className="text-sm text-ink">{summary.message}</p>
+          )}
+
+          {report.generatedAt && (
+            <p className="text-xs text-muted">
+              {report.isFinal ? "최종 리포트" : "중간 집계"} ·{" "}
+              {formatDate(report.generatedAt)} 기준
+            </p>
+          )}
+
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard label="전체 이벤트" value={report.totalCount ?? 0} />
             <StatCard
@@ -124,9 +187,41 @@ function ReportPage() {
             )}
           </section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <StatCard label="조치 완료율" muted note="집계 예정" />
-            <StatCard label="오탐 건수" muted note="집계 예정" />
+          <section>
+            <h2 className="text-[13px] font-bold text-ink mb-3">판정별 건수</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {DECISION_STATES.map(({ key, label }) => (
+                <StatCard
+                  key={key}
+                  label={label}
+                  value={decisionCounts[key] ?? 0}
+                />
+              ))}
+            </div>
+          </section>
+
+          <ZoneStatsTable zoneStats={summary?.zoneStats} />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <StatCard
+              label="조치 완료율"
+              value={summary?.resolutionRate ?? 0}
+              unit="%"
+              muted={pending}
+              note={PENDING_NOTE}
+            />
+            <StatCard
+              label="조치 건수"
+              value={report.resolvedCount ?? 0}
+              muted={pending}
+              note={PENDING_NOTE}
+            />
+            <StatCard
+              label="오탐 건수"
+              value={report.falseAlarmCount ?? 0}
+              muted={pending}
+              note={PENDING_NOTE}
+            />
           </div>
         </div>
       )}
