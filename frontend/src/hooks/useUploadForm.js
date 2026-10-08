@@ -27,6 +27,9 @@ export function useUploadForm({ maxSizeMB, accept, upload, onSuccess }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const submittingRef = useRef(false);
+  const abortRef = useRef(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
     if (status !== "uploading") return;
@@ -123,17 +126,27 @@ export function useUploadForm({ maxSizeMB, accept, upload, onSuccess }) {
     setStatus("uploading");
     setErrorMessage(null);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     let data;
     try {
-      data = await upload(file, zoneId);
+      data = await upload(file, zoneId, { signal: controller.signal });
     } catch (err) {
+      // 화면을 벗어나 취소된 요청은 실패로 표시하지 않는다
+      if (controller.signal.aborted) return;
+
       console.error("업로드 실패:", err);
       setErrorMessage(err.message);
       setStatus("error");
       return;
     } finally {
       submittingRef.current = false;
+      if (abortRef.current === controller) abortRef.current = null;
     }
+
+    // 목 응답처럼 취소가 전달되지 않는 경우에도, 벗어난 뒤에 온 결과는 버린다
+    if (controller.signal.aborted) return;
 
     setStatus("success");
     try {
