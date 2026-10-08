@@ -32,15 +32,16 @@ const isVideoMock = () =>
   import.meta.env.DEV &&
   new URLSearchParams(window.location.search).has("mock");
 
-export const uploadImage = (file, zoneId) =>
-  api.post("/api/upload/file", toFormData(file, zoneId));
+export const uploadImage = (file, zoneId, { signal } = {}) =>
+  api.post("/api/upload/file", toFormData(file, zoneId), { signal });
 
-export async function uploadVideo(file, zoneId) {
+export async function uploadVideo(file, zoneId, { signal } = {}) {
   try {
     if (isVideoMock()) return await mockVideoRequest(file);
 
     return await api.post("/api/upload/file", toFormData(file, zoneId), {
       timeoutMs: VIDEO_TIMEOUT_MS,
+      signal,
     });
   } catch (err) {
     throw toVideoError(err);

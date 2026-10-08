@@ -1,9 +1,36 @@
 import { Link } from "react-router-dom";
 import { formatDate } from "../../utils/date";
-import { getSeverityTone } from "../../constants/severity";
-import SeverityBadge from "../common/SeverityBadge";
-import { parseRegulations } from "../../utils/regulation";
+import {
+  getDecisionView,
+  isReviewRequired,
+} from "../../constants/decisionState";
+import DecisionBadge from "../common/DecisionBadge";
+import {
+  parseRegulations,
+  getReferenceRegulations,
+} from "../../utils/regulation";
 import { FEATURE_RESULT_DETAIL } from "../../constants/config";
+
+function RegulationSection({ title, caption, regulations }) {
+  if (regulations.length === 0) return null;
+
+  return (
+    <section className="mt-4 pl-3 border-l-2 border-border">
+      <h3 className="text-xs font-semibold text-muted mb-1">{title}</h3>
+      {caption && <p className="text-xs text-muted mb-1">{caption}</p>}
+      {regulations.map(({ law, articles }) => (
+        <div key={law} className="mb-1.5 last:mb-0">
+          {law && <p className="text-xs text-muted">{law}</p>}
+          <ul className="text-sm text-ink break-keep">
+            {articles.map((article) => (
+              <li key={article}>{article}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
 
 function ResultList({
   results = [],
@@ -31,10 +58,11 @@ function ResultList({
         <p className="text-muted text-sm">{emptyMessage}</p>
       ) : (
         results.map((item) => {
-          const tone = getSeverityTone(item.severity);
+          const { tone } = getDecisionView(item);
           const detectedLabel =
             formatDate(item.detectedAt) ?? formatDate(item.receivedAt);
-          const regulations = parseRegulations(item.violatedRegulation);
+          const violated = parseRegulations(item.violatedRegulation);
+          const references = getReferenceRegulations(item);
 
           return (
             <article
@@ -42,7 +70,7 @@ function ResultList({
               className={`border rounded-lg p-4 mb-3 ${tone.box}`}
             >
               <header className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
-                <SeverityBadge severity={item.severity} />
+                <DecisionBadge event={item} />
 
                 {item.zoneName && (
                   <span className="text-xs text-muted min-w-0 truncate">
@@ -53,6 +81,13 @@ function ResultList({
                   <span className="text-xs text-muted">{detectedLabel}</span>
                 )}
               </header>
+
+              {isReviewRequired(item) && (
+                <p className="mb-3 px-3 py-2 rounded-md border border-warn bg-white/70 text-sm font-semibold text-warn break-keep">
+                  사람 확인 필요 — AI가 위험으로 확정하지 못한 건입니다.
+                  현장에서 직접 확인해 주세요.
+                </p>
+              )}
 
               {mediaType === "video" && item.fileUrl && (
                 <video
@@ -67,23 +102,12 @@ function ResultList({
                 {item.vlmDescription || "설명을 생성하지 못했습니다."}
               </p>
 
-              {regulations.length > 0 && (
-                <section className="mt-4 pl-3 border-1-2 border-border">
-                  <h3 className="text-xs font-semibold text-muted mb-1">
-                    위반 규정
-                  </h3>
-                  {regulations.map(({ law, articles }) => (
-                    <div key={law} className="mb-1.5 last:mb-0">
-                      {law && <p className="text-xs text-muted">{law}</p>}
-                      <ul className="text-sm text-ink break-keep">
-                        {articles.map((article) => (
-                          <li key={article}>{article}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </section>
-              )}
+              <RegulationSection title="위반 규정" regulations={violated} />
+              <RegulationSection
+                title="참고 법령"
+                caption="관련 법령 검색 결과이며, 위반이 확정된 것은 아닙니다."
+                regulations={references}
+              />
 
               {item.actionGuide && (
                 <section className="mt-3 p-3 rounded-md bg-white/70">

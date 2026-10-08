@@ -60,8 +60,3 @@ export function getSeverityBadge(severity) {
 export function getSeverityTone(severity) {
   return SEVERITY_TONE[normalizeSeverity(severity)] ?? UNKNOWN_TONE;
 }
-
-export function isAlertSeverity(severity) {
-  const s = normalizeSeverity(severity);
-  return s === "CRITICAL" || s === "WARNING";
-}
