@@ -10,9 +10,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface DangerEventRepository extends JpaRepository<DangerEvent, UUID> {
 
-  @Query("SELECT d.severity, d.isResolved, d.isFalseAlarm, COUNT(d.id) " +
-      "FROM DangerEvent d " +
-      "WHERE d.createdAt >= :start AND d.createdAt < :end " +
-      "GROUP BY d.severity, d.isResolved, d.isFalseAlarm")
-  List<Object[]> countDailyStats(@Param("start") Instant start, @Param("end") Instant end);
+  @Query("SELECT d FROM DangerEvent d JOIN FETCH d.workZone " +
+      "WHERE d.createdAt >= :start AND d.createdAt < :end")
+  List<DangerEvent> findAllWithZoneBetween(@Param("start") Instant start,
+      @Param("end") Instant end);
 }

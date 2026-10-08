@@ -26,8 +26,10 @@ logging:
   level:
     org.hibernate.SQL: debug
     com.safeye.backend: trace
+    org.hibernate.orm.jdbc.bind: trace
 
 vlm:
   server:
     url: http://localhost:8100
-    timeout: 30 # VLM 통신 타임아웃 (30초)
+    timeout: 30 # 이미지 분석 타임아웃 (30초)
+    video-timeout: 600 # 영상 분석 타임아웃 (10분)
