@@ -1,12 +1,18 @@
 """영상 분석 결과를 최종 판단 상태에 따라 백엔드 응답으로 변환한다."""
 
+import json
+import logging
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 from app.api_schemas import AIAnalysisResponse
 from app.pipeline import analyze_video
-from app.response_builder import build_action_guide, build_violated_regulation
+from app.response_builder import (
+    build_action_guide, build_violated_regulation, exclude_original_debug_records,
+)
+
+logger = logging.getLogger(__name__)
 
 RISK_LABELS = {
     "NO_HELMET": "안전모 미착용",
@@ -126,6 +132,10 @@ def collect_regulations(result: dict[str, Any]) -> list[dict[str, Any]]:
 
 def build_rag_metadata(result: dict[str, Any]) -> dict[str, Any]:
     """위험별 점수와 판단·통합 기록, 재검토 대상의 RAG 결과를 보존한다."""
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("영상 원본 디버깅 기록: %s", json.dumps(
+            get_decision_records(result), ensure_ascii=False, default=str,
+        ))
     rag_by_risk = {hazard.get("risk_type"): hazard for hazard in result.get("hazards", [])}
     records = []
     for hazard in get_decision_records(result):
@@ -138,7 +148,7 @@ def build_rag_metadata(result: dict[str, Any]) -> dict[str, Any]:
             for field in ("search_query", "regulations", "rag_status", "rag_error"):
                 if field in rag_result:
                     record[field] = deepcopy(rag_result[field])
-        records.append(record)
+        records.append(exclude_original_debug_records(record))
     return {
         "vlm_decision_state": get_video_decision_state(result),
         "hazards": records,
