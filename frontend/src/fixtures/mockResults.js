@@ -50,4 +50,162 @@ export const CASE_EMPTY = {
   resolvedAt: null,
 };
 
-export const MOCK_RESULTS = [CASE_LONG, CASE_SAFE, CASE_EMPTY];
+// ragMetadata.related_regulations 한 건의 모양 (vlm-workspace/app/image_pipeline.py 기준)
+const regulation = (id, article, articleTitle) => ({
+  id,
+  collection: "mock",
+  metadata: {
+    law_name: "산업안전보건기준에 관한 규칙",
+    article,
+    article_title: articleTitle,
+  },
+});
+
+const REG_HELMET = regulation("reg-032", "제32조", "보호구의 지급 등");
+const REG_FALL = regulation("reg-042", "제42조", "추락의 방지");
+const REG_OPENING = regulation("reg-043", "제43조", "개구부 등의 방호 조치");
+const REG_FIRE = regulation("reg-241", "제241조", "화재위험작업 시의 준수사항");
+
+const REVIEW_NOTICE =
+  "검토 대기: 위험 후보는 원본 이미지와 현장 상황을 추가 확인해야 합니다.";
+const REVIEW_ACTION =
+  "검토 대기 후보는 현장 담당자가 확인하고 필요한 안전조치를 판단해 주세요.";
+
+/** 4. 확정 위험(CRITICAL) + 검토 후보가 함께 있는 경우 — 빨강, 사이렌 대상 */
+export const CASE_CONFIRMED = {
+  id: "a1c4e7f0-2b35-4d68-9a71-3e5f7b9d1c20",
+  isDanger: true,
+  zoneName: "A동 타설구역",
+  severity: "CRITICAL",
+  fileUrl: "http://localhost:8080/uploads/images/a1c4e7f0.jpg",
+  vlmDescription: `작업자 한 명이 안전모를 착용하지 않은 상태로 비계 위에서 작업하고 있습니다. ${REVIEW_NOTICE} 후보 관찰 근거: 바닥 개구부 덮개가 일부 열려 있는 것으로 보임`,
+  violatedRegulation:
+    "산업안전보건기준에 관한 규칙 제32조(보호구의 지급 등), 제42조(추락의 방지)",
+  actionGuide: `1. 해당 작업자의 작업을 즉시 중지시키고 안전모를 착용하게 하십시오.\n2. 비계 단부의 안전난간 설치 상태를 확인하십시오. ${REVIEW_ACTION}`,
+  ragMetadata: {
+    vlm_decision_state: "CONFIRMED",
+    analysis_source: "single_image",
+    hazards: [{ detected: true, evidence: "안전모 미착용 작업자 1명" }],
+    related_regulations: [REG_HELMET, REG_FALL, REG_OPENING],
+    confirmed_regulations: [REG_HELMET, REG_FALL],
+    review_required_regulations: [REG_OPENING],
+    raw_hazards: [],
+  },
+  isResolved: false,
+  detectedAt: "2026-10-03T01:12:40.120Z",
+  resolvedAt: null,
+};
+
+/** 5. 검토 대기 — isDanger가 true로 오지만 확정이 아님. 노랑, "확인 필요" 대상 */
+export const CASE_REVIEW = {
+  id: "b2d5f8a1-3c46-4e79-8b82-4f6a8c0e2d31",
+  isDanger: true,
+  zoneName: "C동 용접구역",
+  severity: "WARNING",
+  fileUrl: "http://localhost:8080/uploads/images/b2d5f8a1.jpg",
+  vlmDescription: `작업자가 용접 작업을 하고 있으며 주변에 자재가 쌓여 있습니다. ${REVIEW_NOTICE} 후보 관찰 근거: 불티 비산 방지 덮개가 화면에서 확인되지 않음 / 소화기 위치가 가려져 있음`,
+  violatedRegulation: "",
+  actionGuide: REVIEW_ACTION,
+  ragMetadata: {
+    vlm_decision_state: "REVIEW_REQUIRED",
+    analysis_source: "single_image",
+    hazards: [{ detected: true, evidence: "불티 비산 방지 덮개 미확인" }],
+    related_regulations: [REG_FIRE],
+    confirmed_regulations: [],
+    review_required_regulations: [REG_FIRE],
+    raw_hazards: [],
+  },
+  isResolved: false,
+  detectedAt: "2026-10-03T01:25:03.774Z",
+  resolvedAt: null,
+};
+
+/** 6. AI가 오탐으로 기각 — 실제로는 영상에서만 발생. 회색, 경보 없음 */
+export const CASE_REJECTED = {
+  id: "c3e6a9b2-4d57-4f80-9c93-5a7b9d1f3e42",
+  isDanger: false,
+  zoneName: "B동 자재창고",
+  severity: "INFO",
+  fileUrl: "http://localhost:8080/uploads/images/c3e6a9b2.jpg",
+  vlmDescription:
+    "추락 위험 후보가 감지되었으나 재검증 결과 작업자가 안전난간 안쪽에 있는 것으로 확인되어 기각했습니다.",
+  violatedRegulation: "",
+  actionGuide: "",
+  ragMetadata: {
+    vlm_decision_state: "REJECTED",
+    related_regulations: [],
+  },
+  isResolved: false,
+  detectedAt: "2026-10-03T01:40:55.009Z",
+  resolvedAt: null,
+};
+
+/** 7. 위험 후보 없음 — 초록, 경보 없음 */
+export const CASE_NO_DETECTION = {
+  id: "d4f7b0c3-5e68-4a91-8da4-6b8c0e2a4f53",
+  isDanger: false,
+  zoneName: "B동 자재창고",
+  severity: "INFO",
+  fileUrl: "http://localhost:8080/uploads/images/d4f7b0c3.jpg",
+  vlmDescription:
+    "작업자 세 명이 모두 안전모와 안전화를 착용하고 있으며 통로가 확보되어 있습니다.",
+  violatedRegulation: "",
+  actionGuide: "",
+  ragMetadata: {
+    vlm_decision_state: "NO_DETECTION",
+    analysis_source: "single_image",
+    hazards: [],
+    related_regulations: [],
+    confirmed_regulations: [],
+    review_required_regulations: [],
+    raw_hazards: [],
+  },
+  isResolved: false,
+  detectedAt: "2026-10-03T02:02:18.336Z",
+  resolvedAt: null,
+};
+
+/** 8. 최상위 decisionState만 있는 경우 — 백엔드가 필드를 추가한 뒤의 모양. 확정+WARNING */
+export const CASE_TOP_LEVEL = {
+  id: "e5a8c1d4-6f79-4b02-9eb5-7c9d1f3b5a64",
+  isDanger: true,
+  zoneName: "A동 타설구역",
+  severity: "WARNING",
+  decisionState: "CONFIRMED",
+  fileUrl: "http://localhost:8080/uploads/images/e5a8c1d4.jpg",
+  vlmDescription: "작업자 한 명이 안전화를 착용하지 않고 있습니다.",
+  violatedRegulation: "산업안전보건기준에 관한 규칙 제32조(보호구의 지급 등)",
+  actionGuide: "해당 작업자에게 안전화를 지급하고 착용을 확인하십시오.",
+  ragMetadata: null,
+  isResolved: false,
+  detectedAt: "2026-10-03T02:15:47.901Z",
+  resolvedAt: null,
+};
+
+/** 9. 판정 값이 UNKNOWN — 값이 없는 것과 같이 severity 기준으로 폴백 */
+export const CASE_UNKNOWN = {
+  id: "f6b9d2e5-7a80-4c13-8fc6-8d0e2a4c6b75",
+  isDanger: true,
+  zoneName: "C동 용접구역",
+  severity: "WARNING",
+  fileUrl: "http://localhost:8080/uploads/images/f6b9d2e5.jpg",
+  vlmDescription: "용접 작업 구역 주변에 가연성 자재가 놓여 있습니다.",
+  violatedRegulation: "",
+  actionGuide: "",
+  ragMetadata: { vlm_decision_state: "UNKNOWN" },
+  isResolved: false,
+  detectedAt: "2026-10-03T02:30:09.258Z",
+  resolvedAt: null,
+};
+
+export const MOCK_RESULTS = [
+  CASE_CONFIRMED,
+  CASE_REVIEW,
+  CASE_REJECTED,
+  CASE_NO_DETECTION,
+  CASE_TOP_LEVEL,
+  CASE_UNKNOWN,
+  CASE_LONG,
+  CASE_SAFE,
+  CASE_EMPTY,
+];

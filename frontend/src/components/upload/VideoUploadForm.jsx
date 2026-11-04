@@ -2,7 +2,6 @@ import { useOutletContext } from "react-router-dom";
 import FileUploadForm from "./FileUploadForm";
 import { uploadVideo } from "../../api/upload";
 import { MAX_VIDEO_SIZE_MB } from "../../constants/config";
-import { isAlertSeverity } from "../../constants/severity";
 
 function VideoUploadForm({ onResult }) {
   const { pushAlert } = useOutletContext() ?? {};
@@ -11,9 +10,7 @@ function VideoUploadForm({ onResult }) {
     if (!data) return;
     onResult?.(data);
 
-    if (isAlertSeverity(data?.severity)) {
-      pushAlert?.(data);
-    }
+    pushAlert?.(data);
   };
 
   return (

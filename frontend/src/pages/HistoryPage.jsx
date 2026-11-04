@@ -1,12 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";
-import SeverityBadge from "../components/common/SeverityBadge";
-import {
-  SEVERITY_BADGE,
-  SEVERITY_ORDER,
-  normalizeSeverity,
-} from "../constants/severity";
+import DecisionBadge from "../components/common/DecisionBadge";
+import { DECISION_STATES, getDecisionState } from "../constants/decisionState";
 import { MOCK_HISTORY } from "../fixtures/mockHistory";
 import { formatDate } from "../utils/date";
 import SampleDataNotice from "../components/common/SampleDataNotice";
@@ -14,15 +10,16 @@ import { FEATURE_RESULT_DETAIL } from "../constants/config";
 
 const PAGE_SIZE = 15;
 
+// 판정 값이 없는 건(과거 데이터)은 "판정 불명" 필터로 묶는다
+const getFilterKey = (item) => getDecisionState(item) ?? "UNKNOWN";
+
 function HistoryPage() {
   const [selected, setSelected] = useState([]);
   const [page, setPage] = useState(1);
 
-  const toggle = (severity) => {
+  const toggle = (key) => {
     setSelected((prev) =>
-      prev.includes(severity)
-        ? prev.filter((s) => s !== severity)
-        : [...prev, severity],
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
     setPage(1);
   };
@@ -31,9 +28,7 @@ function HistoryPage() {
     () =>
       selected.length === 0
         ? MOCK_HISTORY
-        : MOCK_HISTORY.filter((item) =>
-            selected.includes(normalizeSeverity(item.severity)),
-          ),
+        : MOCK_HISTORY.filter((item) => selected.includes(getFilterKey(item))),
     [selected],
   );
 
@@ -50,20 +45,20 @@ function HistoryPage() {
       </SampleDataNotice>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {SEVERITY_ORDER.map((severity) => {
-          const active = selected.includes(severity);
+        {DECISION_STATES.map(({ key, label }) => {
+          const active = selected.includes(key);
           return (
             <button
-              key={severity}
+              key={key}
               type="button"
-              onClick={() => toggle(severity)}
+              onClick={() => toggle(key)}
               className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition ${
                 active
                   ? "bg-ink text-white border-ink"
                   : "bg-white text-muted border-border hover:border-ink"
               }`}
             >
-              {SEVERITY_BADGE[severity].label}
+              {label}
             </button>
           );
         })}
@@ -91,7 +86,7 @@ function HistoryPage() {
           <table className="w-full text-sm">
             <thead className="bg-white border-b border-border">
               <tr className="text-left text-xs text-muted">
-                <th className="px-4 py-3 font-semibold w-24">등급</th>
+                <th className="px-4 py-3 font-semibold w-24">판정</th>
                 <th className="px-4 py-3 font-semibold w-40 whitespace-nowrap">
                   발생 시각
                 </th>
@@ -119,7 +114,7 @@ function HistoryPage() {
                     className="border-b border-border last:border-0 hover:bg-black/[0.02]"
                   >
                     <td className="px-4 py-3">
-                      <SeverityBadge severity={item.severity} />
+                      <DecisionBadge event={item} />
                     </td>
                     <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">
                       {formatDate(item.detectedAt)}

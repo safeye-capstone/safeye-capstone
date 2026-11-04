@@ -1,7 +1,7 @@
 import StatsSummary from "../components/dashboard/StatsSummary";
 import { useOutletContext } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";
-import SeverityBadge from "../components/common/SeverityBadge";
+import DecisionBadge from "../components/common/DecisionBadge";
 import SampleDataNotice from "../components/common/SampleDataNotice";
 import { MOCK_HISTORY } from "../fixtures/mockHistory";
 
@@ -46,7 +46,7 @@ function DashboardPage() {
                 className="border-b border-border py-3 last:border-0"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <SeverityBadge severity={alert.severity} />
+                  <DecisionBadge event={alert} />
                   <span className="text-xs text-muted">{alert.zoneName}</span>
                 </div>
                 <p className="text-sm text-ink">{alert.vlmDescription}</p>

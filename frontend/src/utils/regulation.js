@@ -31,3 +31,38 @@ export function parseRegulations(text) {
     articles: [...articles].sort((a, b) => articleNo(a) - articleNo(b)),
   }));
 }
+
+/**
+ * ragMetadata에서 참고 법령을 뽑는다. (위반 확정 근거가 아닌 검색 결과)
+ * review_required_regulations가 있으면 그것을, 그 키가 없으면 related_regulations를 쓴다.
+ * 반환: [{ law, articles }]
+ */
+export function getReferenceRegulations(event) {
+  const meta = event?.ragMetadata;
+  if (!meta) return [];
+
+  const source = Array.isArray(meta.review_required_regulations)
+    ? meta.review_required_regulations
+    : meta.related_regulations;
+  if (!Array.isArray(source)) return [];
+
+  const groups = new Map();
+
+  source.forEach((regulation) => {
+    const { law_name, article, article_title } = regulation?.metadata ?? {};
+    const law = law_name ?? "";
+    const articleLabel = article
+      ? `${article}${article_title ? `(${article_title})` : ""}`
+      : (article_title ?? "");
+
+    if (!law && !articleLabel) return;
+
+    if (!groups.has(law)) groups.set(law, []);
+    const articles = groups.get(law);
+    if (articleLabel && !articles.includes(articleLabel)) {
+      articles.push(articleLabel);
+    }
+  });
+
+  return [...groups].map(([law, articles]) => ({ law, articles }));
+}

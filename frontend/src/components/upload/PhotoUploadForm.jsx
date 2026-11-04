@@ -3,7 +3,6 @@ import { useOutletContext } from "react-router-dom";
 import FileUploadForm from "./FileUploadForm";
 import { uploadImage } from "../../api/upload";
 import { MAX_IMAGE_SIZE_MB } from "../../constants/config";
-import { isAlertSeverity } from "../../constants/severity";
 
 function PhotoUploadForm({ onResult }) {
   const { pushAlert } = useOutletContext() ?? {};
@@ -12,9 +11,7 @@ function PhotoUploadForm({ onResult }) {
     if (!data) return;
     onResult?.(data);
 
-    if (isAlertSeverity(data.severity)) {
-      pushAlert?.(data);
-    }
+    pushAlert?.(data);
   };
 
   return (
