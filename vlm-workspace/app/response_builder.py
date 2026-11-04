@@ -73,5 +73,22 @@ def build_action_guide(analysis: dict, severity: str) -> str:
     if severity == "CRITICAL":
         actions.append("현장 관리자에게 즉시 알리고 안전조치 확인 전까지 작업을 재개하지 마세요.")
     if not actions:
-        return "추가적인 즉시 조치는 필요하지 않으며 현장을 지속적으로 모니터링하세요."
+        return (
+            "분석 결과에 따른 위험별 조치 안내는 없습니다. "
+            "이미지에서 확인되지 않은 항목은 원본 이미지와 현장에서 추가 확인해 주세요."
+        )
     return " ".join(unique_strings(actions))
+
+
+
+def exclude_original_debug_records(value):
+    """응답 사본에서 명시적인 원본 디버깅 기록만 제외한다."""
+    if isinstance(value, dict):
+        return {
+            key: exclude_original_debug_records(item)
+            for key, item in value.items()
+            if key not in {"raw_hazards", "_original_hazard", "_original_observation"}
+        }
+    if isinstance(value, list):
+        return [exclude_original_debug_records(item) for item in value]
+    return value

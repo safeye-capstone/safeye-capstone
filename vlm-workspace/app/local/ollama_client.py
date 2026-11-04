@@ -23,6 +23,7 @@ from app.local.config import (
     local_settings as cfg,
 )
 from app.local.imageops import clamp, validate_image
+from app.rag.query_builder import normalize_helmet_hazards, normalize_workers
 
 logger = logging.getLogger(__name__)
 _NS_PER_MS = 1_000_000
@@ -92,6 +93,25 @@ VLM_SCHEMA = {
                             "NOT_APPLICABLE",
                         ],
                     },
+                    "height_observation": {
+                        "type": "object",
+                        "properties": {
+                            "feet_visible": {
+                                "type": "string",
+                                "enum": ["VISIBLE", "NOT_VISIBLE", "UNCERTAIN"],
+                            },
+                            "support_visible": {
+                                "type": "string",
+                                "enum": ["VISIBLE", "NOT_VISIBLE", "UNCERTAIN"],
+                            },
+                            "ground_relation": {
+                                "type": "string",
+                                "enum": ["AT_GROUND", "ABOVE_GROUND", "UNCERTAIN"],
+                            },
+                        },
+                        "required": ["feet_visible", "support_visible", "ground_relation"],
+                        "additionalProperties": False,
+                    },
                     "work_level": {
                         "type": "string",
                         "enum": ["GROUND", "ELEVATED", "UNCERTAIN"],
@@ -107,6 +127,7 @@ VLM_SCHEMA = {
                     "helmet",
                     "vest",
                     "harness",
+                    "height_observation",
                     "work_level",
                     "position",
                     "observations",
@@ -155,26 +176,20 @@ VLM_SCHEMA = {
     "additionalProperties": False,
 }
 
-
 class OllamaError(RuntimeError):
     """Ollama 계열 오류의 공통 부모."""
-
 
 class OllamaUnreachable(OllamaError):
     """Ollama가 꺼져 있거나 연결 자체가 안 되는 상태."""
 
-
 class OllamaTimeout(OllamaError):
     """연결은 됐지만 제한 시간 안에 추론이 끝나지 않은 상태."""
-
 
 class OllamaBadJSON(OllamaError):
     """모델 응답이 비어 있거나 JSON으로 파싱되지 않는 상태."""
 
-
 class LanguageValidationError(RuntimeError):
     """기존 파이프라인 자연어 필드가 한국어 규칙을 위반한 경우."""
-
 
 @dataclass
 class OllamaTiming:
@@ -215,11 +230,9 @@ class OllamaTiming:
         data["ttft_ms"] = round(self.ttft_ms, 1)
         return data
 
-
 def strip_fence(text: str) -> str:
     """모델이 JSON 코드블록을 붙여도 파싱할 수 있도록 fence를 제거한다."""
     return _FENCE.sub("", text).strip()
-
 
 def decode_json_object(text: str) -> dict:
     """JSON 외부 문장이 섞여 있어도 첫 번째 완전한 JSON 객체를 복구한다."""
@@ -234,7 +247,6 @@ def decode_json_object(text: str) -> dict:
             return parsed
     raise OllamaBadJSON("모델 응답에서 유효한 JSON 객체를 찾지 못했습니다.")
 
-
 def fallback_json_prompt(prompt: str) -> str:
     """엄격한 schema가 불안정한 VLM을 위해 더 단순한 JSON-전용 프롬프트로 낮춘다."""
     base = prompt.strip()
@@ -246,7 +258,6 @@ def fallback_json_prompt(prompt: str) -> str:
         "confidence. 값이 없으면 빈 배열을 사용하세요. 자연어 값은 한국어로 작성하세요."
     )
     return (base + suffix).strip()
-
 
 class OllamaClient:
     def __init__(
@@ -455,7 +466,6 @@ class OllamaClient:
         except Exception:
             return False
 
-
 def load_video_prompt() -> str:
     if not VIDEO_ANALYSIS_PROMPT.exists():
         raise FileNotFoundError(
@@ -466,10 +476,8 @@ def load_video_prompt() -> str:
         raise ValueError("video_analysis.txt가 비어 있습니다.")
     return prompt + "\n\n" + OUTPUT_CONSTRAINTS
 
-
 def remove_markdown_fence(content: str) -> str:
     return strip_fence(content)
-
 
 def parse_json_response(content: str) -> dict:
     try:
@@ -481,13 +489,11 @@ def parse_json_response(content: str) -> dict:
         )
         raise
 
-
 def normalize_worker_ids(analysis: dict) -> dict:
     workers = analysis.get("workers", [])
     for worker_id, worker in enumerate(workers, start=1):
         worker["worker_id"] = worker_id
     return analysis
-
 
 def validate_analysis_schema(analysis: dict) -> None:
     """기존 파이프라인이 사용하는 핵심 VLM 응답 구조를 검증한다."""
@@ -513,13 +519,25 @@ def validate_analysis_schema(analysis: dict) -> None:
         if missing:
             raise OllamaBadJSON(f"workers[{index}] 필수 필드 누락: {', '.join(sorted(missing))}")
 
+        observation = worker.get("height_observation")
+        if not isinstance(observation, dict):
+            raise OllamaBadJSON(f"workers[{index}].height_observation은 객체여야 합니다.")
+        allowed = {
+            "feet_visible": {"VISIBLE", "NOT_VISIBLE", "UNCERTAIN"},
+            "support_visible": {"VISIBLE", "NOT_VISIBLE", "UNCERTAIN"},
+            "ground_relation": {"AT_GROUND", "ABOVE_GROUND", "UNCERTAIN"},
+        }
+        for field, values in allowed.items():
+            value = observation.get(field)
+            if not isinstance(value, str) or value not in values:
+                raise OllamaBadJSON(f"workers[{index}].height_observation.{field} 값 오류")
+
     for index, hazard in enumerate(analysis["hazards"]):
         if not isinstance(hazard, dict):
             raise OllamaBadJSON(f"hazards[{index}]는 객체여야 합니다.")
         missing = hazard_required.difference(hazard)
         if missing:
             raise OllamaBadJSON(f"hazards[{index}] 필수 필드 누락: {', '.join(sorted(missing))}")
-
 
 def collect_natural_language_fields(analysis: dict) -> list[tuple[str, str]]:
     fields: list[tuple[str, str]] = []
@@ -545,7 +563,6 @@ def collect_natural_language_fields(analysis: dict) -> list[tuple[str, str]]:
             fields.append((f"hazards[{index}].evidence", str(evidence)))
     return fields
 
-
 def is_invalid_natural_language(text: str) -> bool:
     text = str(text).strip()
     if not text:
@@ -562,7 +579,6 @@ def is_invalid_natural_language(text: str) -> bool:
         return True
     return False
 
-
 def validate_korean_output(analysis: dict) -> None:
     invalid_fields: list[tuple[str, str]] = []
     for field_name, text in collect_natural_language_fields(analysis):
@@ -577,7 +593,6 @@ def validate_korean_output(analysis: dict) -> None:
             text[:120],
         )
     raise LanguageValidationError("자연어 필드에 영어 또는 중국어가 포함되어 있습니다.")
-
 
 def prepare_image_base64(image_path: Path) -> str:
     raw = image_path.read_bytes()
@@ -600,15 +615,12 @@ def prepare_image_base64(image_path: Path) -> str:
         )
     return base64.b64encode(processed).decode("utf-8")
 
-
 def request_ollama(
     image_path: Path,
     image_base64: str,
     prompt: str,
     attempt: int,
 ) -> dict:
-    repeat_penalty = 1.15 + (attempt - 1) * 0.05
-    temperature = min(0.10 + (attempt - 1) * 0.05, 0.20)
     payload = {
         "model": VLM_MODEL,
         "prompt": prompt,
@@ -619,9 +631,9 @@ def request_ollama(
         "keep_alive": cfg.keep_alive,
         "options": {
             "num_ctx": cfg.num_ctx,
-            "temperature": temperature,
+            "temperature": 0.0,
             "num_predict": LEGACY_NUM_PREDICT,
-            "repeat_penalty": repeat_penalty,
+            "repeat_penalty": 1.0,
             "repeat_last_n": 256,
             "top_p": 0.90,
         },
@@ -671,7 +683,6 @@ def request_ollama(
     )
     return data
 
-
 def analyze_image(
     image_path: str | Path,
     prompt: str | None = None,
@@ -692,7 +703,7 @@ def analyze_image(
             request_prompt = prompt
             if language_retry_required:
                 request_prompt = prompt + "\n\n" + LANGUAGE_RETRY_INSTRUCTION
-                logger.info("언어 재시도 - 분석 내용은 유지하고 자연어 필드만 한국어로 재생성")
+                logger.info("언어 재시도 - 동일 이미지와 판단 기준으로 한국어 응답 재생성")
             data = request_ollama(
                 image_path=image_path,
                 image_base64=image_base64,
@@ -718,6 +729,8 @@ def analyze_image(
             parsed = normalize_worker_ids(parsed)
             validate_analysis_schema(parsed)
             validate_korean_output(parsed)
+            normalize_workers(parsed)
+            normalize_helmet_hazards(parsed)
             logger.info(
                 "VLM 분석 완료 - image=%s, attempt=%s, elapsed=%.2fs",
                 image_path.name,
@@ -755,7 +768,6 @@ def analyze_image(
                 time.sleep(RETRY_DELAY_SECONDS)
     raise RuntimeError(f"{image_path.name} VLM 분석 최종 실패") from last_error
 
-
 def main() -> None:
     image_path = FRAME_DIR / "frame_0000.00.jpg"
     print()
@@ -777,7 +789,6 @@ def main() -> None:
         print("VLM 분석 실패")
         print("=" * 60)
         print(f"{type(error).__name__}: {error}")
-
 
 if __name__ == "__main__":
     logging.basicConfig(
