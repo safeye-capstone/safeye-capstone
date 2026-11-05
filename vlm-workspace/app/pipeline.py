@@ -179,37 +179,6 @@ def get_article(regulation: dict) -> str:
         return article_title
     return "조항 정보 없음"
 # ============================================================
-# Final Decision 결과 출력
-# ============================================================
-def print_decision_summary(decided_hazards: list[dict]) -> None:
-    print()
-    print("=" * 60)
-    print("최종 위험 판단")
-    print("=" * 60)
-    if not decided_hazards:
-        print("판단할 위험이 없습니다.")
-        return
-    for index, hazard in enumerate(decided_hazards, start=1):
-        risk_type = hazard.get("risk_type", "UNKNOWN")
-        decision = hazard.get("final_decision", "UNKNOWN")
-        reason = hazard.get("final_decision_reason", "")
-        final_label = hazard.get(
-            "final_reliability_label",
-            hazard.get("reliability_label", "UNKNOWN"),
-        )
-        final_score = hazard.get(
-            "final_consistency_score",
-            hazard.get("consistency_score", 0.0),
-        )
-        print()
-        print(f"[판단 {index}]")
-        print(f"위험 유형: {risk_type}")
-        print(f"Final Decision: {decision}")
-        print(f"최종 신뢰도: {final_label}")
-        print(f"최종 일관성 점수: {final_score:.3f}")
-        if reason:
-            print(f"판단 사유: {reason}")
-# ============================================================
 # 통합 위험 결과 출력
 # ============================================================
 def print_aggregated_summary(hazards: list[dict]) -> None:

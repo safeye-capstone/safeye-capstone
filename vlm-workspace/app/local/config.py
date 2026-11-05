@@ -17,7 +17,7 @@ DATA_DIR = BASE_DIR / "data"
 VIDEO_DIR = DATA_DIR / "videos"
 FRAME_DIR = DATA_DIR / "frames"
 PROMPTS_DIR = BASE_DIR / "prompts"
-VIDEO_ANALYSIS_PROMPT = PROMPTS_DIR / "video_analysis.txt"
+IMAGE_ANALYSIS_PROMPT = PROMPTS_DIR / "image_analysis.txt"
 
 
 def _load_env_file(path: str = ".env.local") -> None:
@@ -64,6 +64,10 @@ _load_env_file()
 
 @dataclass(frozen=True)
 class LocalSettings:
+    # VLM 공급자 선택. 기존 Ollama 환경과 Gemini API 간 전환에만 사용한다.
+    vlm_provider: str = _env("VLM_PROVIDER", "ollama").strip().lower()
+
+    # Ollama 설정
     ollama_base_url: str = _env("OLLAMA_BASE_URL", "http://166.104.223.60:11434")
     model: str = _env("MODEL", "qwen2.5vl:7b-q4_K_M")
     keep_alive: str = _env("KEEP_ALIVE", "30m")
@@ -71,6 +75,19 @@ class LocalSettings:
     num_predict: int = _int_env("NUM_PREDICT", 400)
     temperature: float = _float_env("TEMPERATURE", 0.1)
     think: bool = _bool_env("THINK", False)
+
+    # Gemini API 설정. API 키는 반드시 .env.local 또는 배포 환경변수로만 제공한다.
+    gemini_base_url: str = _env(
+        "GEMINI_BASE_URL",
+        "https://generativelanguage.googleapis.com/v1beta",
+    )
+    gemini_api_key: str = _env("GEMINI_API_KEY", "")
+    gemini_model: str = _env("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    gemini_max_output_tokens: int = _int_env("GEMINI_MAX_OUTPUT_TOKENS", 1200)
+    gemini_response_mime_type: str = _env(
+        "GEMINI_RESPONSE_MIME_TYPE",
+        "application/json",
+    )
 
     connect_timeout: float = _float_env("CONNECT_TIMEOUT", 3.0)
     read_timeout: float = _float_env("READ_TIMEOUT", 60.0)
@@ -88,21 +105,14 @@ class LocalSettings:
     warmup_on_start: bool = _bool_env("WARMUP_ON_START", True)
 
     json_retry: int = _int_env("JSON_RETRY", 1)
+    retry_delay_sec: float = _float_env("RETRY_DELAY_SEC", 3.0)
+    retry_backoff_max_sec: float = _float_env("RETRY_BACKOFF_MAX_SEC", 30.0)
 
     bench_models: str = _env(
         "BENCH_MODELS",
         "qwen3-vl:8b-q4_K_M,qwen3-vl:8b-q8_0,qwen3-vl:4b-q4_K_M",
     )
     bench_edges: str = _env("BENCH_EDGES", "672,896,1024,1280")
-
-    @property
-    def bench_model_list(self) -> list[str]:
-        return _csv(self.bench_models)
-
-    @property
-    def bench_edge_list(self) -> list[int]:
-        return [int(x) for x in _csv(self.bench_edges)]
-
 
 local_settings = LocalSettings()
 

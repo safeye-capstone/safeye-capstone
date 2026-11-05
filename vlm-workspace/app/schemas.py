@@ -9,21 +9,6 @@ from pydantic import BaseModel, Field
 
 Severity = Literal["CRITICAL", "WARNING", "INFO"]
 
-HAZARD_TYPES = [
-    "떨어짐",
-    "넘어짐",
-    "부딪힘",
-    "맞음",
-    "끼임",
-    "베임",
-    "감전",
-    "화재",
-    "질식중독",
-    "무너짐",
-    "없음",
-]
-
-
 class ObservedObject(BaseModel):
     name: str
     attributes: list[str] = Field(default_factory=list)
