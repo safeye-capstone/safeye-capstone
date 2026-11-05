@@ -174,6 +174,12 @@ def extract_requested_annex_no(
 # 위험 유형별 기본 규칙
 # ============================================================
 RISK_RULES = {
+    "COLLAPSE": {
+        "positive_keywords": ["구급용구", "응급처치", "부상자", "들것"],
+        "strong_keywords": ["구급용구", "응급처치"],
+        "priority_targets": [{"collection": "osh_safety_rule", "article": "제82조"}],
+        "negative_keywords": [],
+    },
     # --------------------------------------------------------
     # 안전모 미착용
     # --------------------------------------------------------
@@ -535,7 +541,7 @@ SCENARIO_RULES = {
 # Risk Type 마커
 # ============================================================
 RISK_MARKER_PATTERN = re.compile(
-    r"\[RISK_TYPE=" r"(NO_HELMET|UNFASTENED_SAFETY_HARNESS|" r"FALL_HAZARD|BLOCKED_PATH)" r"\]"
+    r"\[RISK_TYPE=" r"(NO_HELMET|UNFASTENED_SAFETY_HARNESS|" r"FALL_HAZARD|BLOCKED_PATH|COLLAPSE)" r"\]"
 )
 
 
@@ -957,11 +963,30 @@ def calculate_scenario_bonus(
 # ============================================================
 # Reranking
 # ============================================================
+def rerank_collapse_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
+    """Unknown-cause collapse: retrieve general first-aid preparation, not cause-specific rules."""
+    title = str((candidate.get("metadata") or {}).get("article_title", "")).replace(" ", "")
+    text = build_candidate_text(candidate)
+    matched = [word for word in ("구급용구", "응급처치", "부상자", "들것") if word in text]
+    # A body-text mention of emergency response in unrelated work is insufficient.
+    general_title = title in {"구급용구", "응급처치", "응급처치용구", "구급용구의비치"}
+    relevant = general_title and len(matched) >= 2
+    vector = distance_to_score(candidate.get("distance"))
+    return {**candidate, "vector_score": round(vector, 6),
+            "rerank_score": round(vector + (4.0 if relevant else -4.0), 6),
+            "matched_keywords": matched, "title_matches": [title] if relevant else [],
+            "domain_relevant": relevant, "priority_target": relevant,
+            "retrieval_purpose": "GENERAL_FIRST_AID_REFERENCE",
+            "relevance_reason": "일반 구급 준비·관리 기준" if relevant else "일반 구급 대응과 직접 관련된 제목·본문 근거 부족"}
+
+
 def rerank_candidate(
     candidate: dict[str, Any],
     risk_type: str | None,
     query_text: str,
 ) -> dict[str, Any]:
+    if risk_type == "COLLAPSE":
+        return rerank_collapse_candidate(candidate)
     vector_score = distance_to_score(candidate.get("distance"))
     collection_name = candidate.get("collection", "")
     serious_collection = collection_name in SERIOUS_ACCIDENT_COLLECTIONS
@@ -1261,6 +1286,9 @@ def search_regulations(
     # --------------------------------------------------------
     relevant = [result for result in reranked if result.get("domain_relevant", False)]
     fallback = [result for result in reranked if not result.get("domain_relevant", False)]
+    # 쓰러짐 원인을 알 수 없으므로 무관한 조항으로 Top-K를 채우지 않는다.
+    if risk_type == "COLLAPSE":
+        return relevant[:final_top_k]
     final_results = relevant + fallback
     return final_results[:final_top_k]
 

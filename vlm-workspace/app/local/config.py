@@ -69,7 +69,7 @@ class LocalSettings:
     keep_alive: str = _env("KEEP_ALIVE", "30m")
     num_ctx: int = _int_env("NUM_CTX", 8192)
     num_predict: int = _int_env("NUM_PREDICT", 400)
-    temperature: float = _float_env("TEMPERATURE", 0.1)
+    temperature: float = _float_env("TEMPERATURE", 0.0)
     think: bool = _bool_env("THINK", False)
 
     connect_timeout: float = _float_env("CONNECT_TIMEOUT", 3.0)

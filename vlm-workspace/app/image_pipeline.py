@@ -88,7 +88,8 @@ def classify_image_hazards(raw_analysis: dict, analysis: dict) -> list[dict]:
     candidates = [dict(hazard) for hazard in analysis.get("hazards", []) if hazard.get("detected", False)]
     # 정규화에서 제거된 안전대 후보 중, 불확실해서 확정하지 못한 후보만 복원한다.
     # 지상 작업 등 명확히 적용 대상이 아닌 경우와 단순 UNCERTAIN 상태는 후보를 생성하지 않는다.
-    if not definite_harness and uncertain_harness:
+    if (not definite_harness and uncertain_harness
+            and analysis.get("scene_context", {}).get("category") != "NON_INDUSTRIAL"):
         for hazard in raw_candidates.get(HARNESS_RISK, []):
             candidates.append({**hazard, "risk_type": HARNESS_RISK, "detected": True})
 
@@ -111,6 +112,14 @@ def classify_image_hazards(raw_analysis: dict, analysis: dict) -> list[dict]:
             reason = "작업자의 안전모 착용 상태가 불확실하여 추가 확인이 필요함"
         if risk_type == HARNESS_RISK and not definite_harness:
             reason = "고소작업 여부 또는 안전대 착용·체결 상태가 명확하지 않음"
+        if hazard.get("visual_review_required"):
+            reason = hazard.get("visual_review_reason", "위험의 구체적 시각 근거 확인이 필요함")
+        if hazard.get("context_review_required"):
+            reason = "산업 작업 맥락이 불확실하여 위험 적용 여부를 검토해야 함"
+        if risk_type != "COLLAPSE" and not hazard.get("confirmation_eligible", False):
+            reason = "위험별 필수 관찰 근거가 충분하지 않아 추가 확인이 필요함"
+        if risk_type == "COLLAPSE":
+            reason = "정지 이미지의 쓰러짐 후보는 연속 프레임 자세 확인이 필요함"
         decision = "REVIEW_REQUIRED" if reason else "CONFIRMED"
         results.append({
             **hazard,
@@ -124,10 +133,59 @@ def classify_image_hazards(raw_analysis: dict, analysis: dict) -> list[dict]:
     return results
 
 
+def verify_image_candidates(image_path: str | Path, hazards: list[dict], *, verifier=None) -> list[dict]:
+    """A candidate needs a separate focused observation, not repeated full-scene tags."""
+    from app.rag.spatial_review import review_candidate, pending
+    verify = verifier
+    results = []
+    cache = {}
+    for original in hazards:
+        hazard = deepcopy(original)
+        risk = hazard.get("risk_type")
+        if risk == "COLLAPSE" or not hazard.get("detected"):
+            results.append(hazard)
+            continue
+        try:
+            if risk not in cache:
+                cache[risk] = verify(Path(image_path), risk) if verify else review_candidate(Path(image_path), risk, hazard)
+            checked = cache[risk]
+            if hazard.get("review_context", {}).get("conflicts") and not checked.get("conflicts_resolved"):
+                checked = pending(checked, "상충하는 관찰이 남아 자동 확정 보류")
+                checked["verification_conflicts"] = hazard["review_context"]["conflicts"]
+            hazard["focused_verification"] = checked
+            if checked.get("confirmation_eligible"):
+                hazard["initial_worker_ids"] = hazard.get("worker_ids", [])
+                hazard["initial_evidence"] = hazard.get("evidence", "")
+                hazard["initial_confirmation_missing"] = hazard.get("confirmation_missing", [])
+                hazard.update(worker_ids=[], evidence=checked["evidence"], confirmation_missing=[])
+                hazard.update(final_decision="CONFIRMED", vlm_decision_state="CONFIRMED",
+                    confidence=checked["confidence"], confirmation_eligible=True,
+                    visual_evidence=checked["visual_evidence"],
+                    final_decision_reason="초기 후보가 위험별 직접 관찰에서 재확인됨",
+                    final_decision_method="focused_observation_v1")
+                # Checker IDs belong to its own response; never bind them to initial people.
+                hazard["verified_evidence"] = checked["evidence"]
+            elif checked.get("conclusive"):
+                hazard.update(final_decision="REJECTED", vlm_decision_state="REJECTED",
+                    confirmation_eligible=False, final_decision_reason="위험별 직접 관찰에서 후보가 확인되지 않음")
+            else:
+                hazard.update(final_decision="REVIEW_REQUIRED", vlm_decision_state="REVIEW_REQUIRED",
+                    confirmation_eligible=False, final_decision_reason="직접 관찰에 불확실성이 남아 검토 필요")
+        except Exception as error:
+            hazard.update(final_decision="REVIEW_REQUIRED", vlm_decision_state="REVIEW_REQUIRED",
+                focused_verification={"status":"ERROR", "error":str(error)},
+                final_decision_reason="위험별 관찰 검증 실패로 검토 유지")
+        results.append(hazard)
+    return results
+
+
 def analyze_image_for_api(image_path: str | Path) -> AIAnalysisResponse:
-    raw_analysis = parse_vlm_result(analyze_image(image_path))
-    analysis = normalize_vlm_analysis(deepcopy(raw_analysis))
-    hazards = classify_image_hazards(raw_analysis, analysis)
+    from app.rag.focused_observation import analyze_candidates, prepare_frame_candidates
+    raw_analysis = analyze_candidates(image_path, analyze_image)
+    analysis = prepare_frame_candidates(image_path, raw_analysis)
+    hazards = verify_image_candidates(image_path, classify_image_hazards(raw_analysis, analysis))
+    from app.review_order import attach_review_order, REVIEW_ORDER_POLICY
+    hazards, review_queue = attach_review_order(hazards)
     confirmed = [hazard for hazard in hazards if hazard["final_decision"] == "CONFIRMED"]
     pending = [hazard for hazard in hazards if hazard["final_decision"] == "REVIEW_REQUIRED"]
     confirmed_analysis = {**analysis, "hazards": confirmed}
@@ -167,10 +225,18 @@ def analyze_image_for_api(image_path: str | Path) -> AIAnalysisResponse:
         ragMetadata={
             "vlm_decision_state": decision_state,
             "analysis_source": "single_image",
+            "review_queue": review_queue,
+            "review_order_policy": REVIEW_ORDER_POLICY,
             "hazards": hazards,
             "related_regulations": confirmed_regulations + pending_regulations,
             "confirmed_regulations": confirmed_regulations,
             "review_required_regulations": pending_regulations,
             "raw_hazards": raw_analysis.get("hazards", []),
+            "scene_context": analysis.get("scene_context"),
+            "language_status": raw_analysis.get("language_status", "COMPLETED"),
+            "ppe_candidate_observation": analysis.get("ppe_candidate_observation"),
+            "context_exclusions": [hazard for hazard in analysis.get("hazards", [])
+                                   if hazard.get("applicability_status") in {"NOT_INDUSTRIAL_CONTEXT", "POSTURE_CONTRADICTION"}
+                                   and hazard.get("observed_detected")],
         },
     )

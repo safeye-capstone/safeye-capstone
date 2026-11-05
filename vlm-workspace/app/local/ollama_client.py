@@ -14,8 +14,11 @@ import re
 import threading
 import time
 from dataclasses import asdict, dataclass
+from copy import deepcopy
 from pathlib import Path
 import httpx
+from collections import Counter
+from app.rag.confirmation_evidence import VISUAL_EVIDENCE_CODES
 from app.local.config import (
     FRAME_DIR,
     VIDEO_ANALYSIS_PROMPT,
@@ -48,32 +51,27 @@ OUTPUT_CONSTRAINTS = """
   기존 분석 내용과 판단 근거의 상세도를
   생략하거나 축약하지 마세요.
 """
-LANGUAGE_RETRY_INSTRUCTION = """
-[언어 검증 실패 - 재출력 지시]
-이전 응답의 자연어 필드에 영어 또는 중국어가 포함되었습니다.
-이미지에 대한 분석 기준과 판단 내용의 상세도는 그대로 유지하세요.
-분석 내용을 축약하거나 단순화하지 마세요.
-단, 다음 자연어 필드만 반드시 한국어로 작성하세요.
-- position
-- observations
-- evidence
-- scene_description
-JSON key와 enum 값은 기존 영어 형식을 그대로 유지하세요.
-예:
-"position": "고소 작업발판 가장자리에서 작업 중"
-잘못된 예:
-"position": "WORKING_ON_HIGH_STRUCTURE"
-JSON 객체 하나만 다시 반환하세요.
-"""
 VLM_SCHEMA = {
     "type": "object",
     "properties": {
+        "scene_context": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "enum": ["INDUSTRIAL", "NON_INDUSTRIAL", "UNCERTAIN"]},
+                "evidence": {"type": "string", "minLength": 1},
+            },
+            "required": ["category", "evidence"],
+            "additionalProperties": False,
+        },
         "workers": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
                     "worker_id": {"type": "integer"},
+                    "posture": {
+                        "type": "string", "enum": ["UPRIGHT", "SITTING", "SQUATTING", "KNEELING",
+                                                    "BENT_OVER", "LYING_OR_ROLLING", "LOSING_BALANCE", "UNCERTAIN"]},
                     "helmet": {
                         "type": "string",
                         "enum": ["WEARING", "NOT_WEARING", "UNCERTAIN"],
@@ -104,6 +102,7 @@ VLM_SCHEMA = {
                 },
                 "required": [
                     "worker_id",
+                    "posture",
                     "helmet",
                     "vest",
                     "harness",
@@ -126,6 +125,7 @@ VLM_SCHEMA = {
                             "UNFASTENED_SAFETY_HARNESS",
                             "FALL_HAZARD",
                             "BLOCKED_PATH",
+                            "COLLAPSE",
                         ],
                     },
                     "detected": {"type": "boolean"},
@@ -151,9 +151,20 @@ VLM_SCHEMA = {
         },
         "scene_description": {"type": "string"},
     },
-    "required": ["workers", "hazards", "scene_description"],
+    "required": ["scene_context", "workers", "hazards", "scene_description"],
     "additionalProperties": False,
 }
+
+
+# Describe natural-language fields; validate and repair independently of inference decisions.
+for text_schema in [
+    VLM_SCHEMA["properties"]["scene_context"]["properties"]["evidence"],
+    VLM_SCHEMA["properties"]["scene_description"],
+    VLM_SCHEMA["properties"]["workers"]["items"]["properties"]["position"],
+    VLM_SCHEMA["properties"]["workers"]["items"]["properties"]["observations"]["items"],
+    VLM_SCHEMA["properties"]["hazards"]["items"]["properties"]["evidence"],
+]:
+    text_schema["description"] = "한국어 설명. 영어 단어나 중국어 문자를 사용하지 마세요."
 
 
 class OllamaError(RuntimeError):
@@ -259,7 +270,7 @@ class OllamaClient:
         keep_alive: str | int = "30m",
         num_ctx: int = 8192,
         num_predict: int = 400,
-        temperature: float = 0.1,
+        temperature: float = 0.0,
         think: bool | None = False,
     ):
         self.base_url = base_url.rstrip("/")
@@ -484,14 +495,21 @@ def parse_json_response(content: str) -> dict:
 
 def normalize_worker_ids(analysis: dict) -> dict:
     workers = analysis.get("workers", [])
+    counts = Counter(worker.get("worker_id") for worker in workers)
+    mapping = {worker.get("worker_id"): index for index, worker in enumerate(workers, start=1)
+               if counts[worker.get("worker_id")] == 1}
     for worker_id, worker in enumerate(workers, start=1):
         worker["worker_id"] = worker_id
+    for hazard in analysis.get("hazards", []):
+        if "worker_ids" in hazard:
+            # Unresolved or duplicated source IDs must not silently bind to another person.
+            hazard["worker_ids"] = [mapping.get(source_id, 0) for source_id in hazard["worker_ids"]]
     return analysis
 
 
 def validate_analysis_schema(analysis: dict) -> None:
     """기존 파이프라인이 사용하는 핵심 VLM 응답 구조를 검증한다."""
-    required_top_level = {"workers", "hazards", "scene_description"}
+    required_top_level = {"scene_context", "workers", "hazards", "scene_description"}
     missing = required_top_level.difference(analysis)
     if missing:
         raise OllamaBadJSON(f"VLM JSON 필수 필드 누락: {', '.join(sorted(missing))}")
@@ -503,6 +521,10 @@ def validate_analysis_schema(analysis: dict) -> None:
     if not isinstance(analysis["scene_description"], str):
         raise OllamaBadJSON("VLM JSON의 scene_description은 문자열이어야 합니다.")
 
+    context = analysis["scene_context"]
+    if (not isinstance(context, dict) or context.get("category") not in
+            {"INDUSTRIAL", "NON_INDUSTRIAL", "UNCERTAIN"} or not isinstance(context.get("evidence"), str) or not context["evidence"].strip()):
+        raise OllamaBadJSON("scene_context의 category와 evidence가 필요합니다.")
     worker_required = set(VLM_SCHEMA["properties"]["workers"]["items"]["required"])
     hazard_required = set(VLM_SCHEMA["properties"]["hazards"]["items"]["required"])
 
@@ -523,6 +545,9 @@ def validate_analysis_schema(analysis: dict) -> None:
 
 def collect_natural_language_fields(analysis: dict) -> list[tuple[str, str]]:
     fields: list[tuple[str, str]] = []
+    context_evidence = analysis.get("scene_context", {}).get("evidence", "")
+    if context_evidence:
+        fields.append(("scene_context.evidence", str(context_evidence)))
     scene_description = analysis.get("scene_description", "")
     if scene_description:
         fields.append(("scene_description", str(scene_description)))
@@ -548,19 +573,10 @@ def collect_natural_language_fields(analysis: dict) -> list[tuple[str, str]]:
 
 def is_invalid_natural_language(text: str) -> bool:
     text = str(text).strip()
-    if not text:
-        return False
-    if re.search(r"[\u4e00-\u9fff]", text):
-        return True
-    if re.search(r"\b[A-Z]{2,}(?:_[A-Z]{2,})+\b", text):
-        return True
-    english_words = re.findall(r"\b[A-Za-z]{2,}\b", text)
-    hangul_chars = re.findall(r"[가-힣]", text)
-    if len(hangul_chars) == 0 and len(english_words) >= 2:
-        return True
-    if len(english_words) >= 4:
-        return True
-    return False
+    # Reject foreign alphabetic text, including single Latin letters and kana.
+    return any(character.isalpha() and not (
+        "가" <= character <= "힣" or "\u1100" <= character <= "\u11ff"
+        or "\u3130" <= character <= "\u318f") for character in text)
 
 
 def validate_korean_output(analysis: dict) -> None:
@@ -603,17 +619,17 @@ def prepare_image_base64(image_path: Path) -> str:
 
 def request_ollama(
     image_path: Path,
-    image_base64: str,
+    image_base64: str | list[str] | None,
     prompt: str,
     attempt: int,
+    schema: dict | None = None,
 ) -> dict:
-    repeat_penalty = 1.15 + (attempt - 1) * 0.05
-    temperature = min(0.10 + (attempt - 1) * 0.05, 0.20)
+    repeat_penalty = 1.15
+    temperature = cfg.temperature
     payload = {
         "model": VLM_MODEL,
         "prompt": prompt,
-        "images": [image_base64],
-        "format": VLM_SCHEMA,
+        "format": VLM_SCHEMA if schema is None else schema,
         "stream": False,
         "think": cfg.think,
         "keep_alive": cfg.keep_alive,
@@ -626,6 +642,8 @@ def request_ollama(
             "top_p": 0.90,
         },
     }
+    if image_base64:
+        payload["images"] = image_base64 if isinstance(image_base64, list) else [image_base64]
     timeout = httpx.Timeout(
         connect=cfg.connect_timeout,
         read=max(cfg.read_timeout, 300.0),
@@ -672,86 +690,121 @@ def request_ollama(
     return data
 
 
-def analyze_image(
-    image_path: str | Path,
-    prompt: str | None = None,
-    max_retries: int = 3,
-) -> str:
-    if max_retries < 1:
-        raise ValueError("max_retries는 1 이상이어야 합니다.")
+def localize_enum_mentions(text: str) -> str:
+    # Only explanatory text is changed; structured enum fields are never touched.
+    labels = {
+        "LYING_OR_ROLLING": "바닥에 누움 또는 구름", "LOSING_BALANCE": "균형 상실",
+        "SQUATTING": "쪼그려 앉음", "KNEELING": "무릎을 꿇음", "BENT_OVER": "허리를 숙임",
+        "UPRIGHT": "직립", "SITTING": "앉음", "GROUND": "지상", "ELEVATED": "높은 작업 위치",
+        "NON_INDUSTRIAL": "비산업 활동", "INDUSTRIAL": "산업 작업", "UNCERTAIN": "불확실",
+        "NOT_APPLICABLE": "적용 대상 아님", "WORN_NOT_CONNECTED": "착용했으나 미체결",
+        "NOT_WEARING": "미착용", "WEARING": "착용", "CONNECTED": "체결됨",
+        "COLLAPSE": "쓰러짐 후보", "FALL_HAZARD": "추락 위험", "NO_HELMET": "안전모 미착용",
+        "UNFASTENED_SAFETY_HARNESS": "안전대 미착용 또는 미체결", "BLOCKED_PATH": "통행로 장애",
+    }
+    labels.update({
+        "HEAD_VISIBLE": "머리 부분 확인", "HELMET_ABSENT": "안전모 미착용 확인",
+        "ELEVATED_SUPPORT_VISIBLE": "높은 작업 지지면 확인", "HARNESS_ABSENT": "안전대 미착용 확인",
+        "ANCHOR_DISCONNECTED": "안전고리 미체결 확인", "EDGE_OR_OPENING_VISIBLE": "가장자리 또는 개구부 확인",
+        "PERSON_EXPOSED": "작업자 노출 확인", "PROTECTION_MISSING": "방호 부족 확인",
+        "PASSAGE_VISIBLE": "통행 경로 확인", "PASSAGE_BLOCKED": "통행 경로 차단 확인",
+    })
+    return re.sub(r"\b(?:" + "|".join(sorted(labels, key=len, reverse=True)) + r")\b",
+                  lambda match: labels[match.group()], text)
 
-    analysis_started = time.perf_counter()
-    image_path = validate_image(image_path)
-    if prompt is None:
-        prompt = load_video_prompt()
-    image_base64 = prepare_image_base64(image_path)
-    last_error: Exception | None = None
-    language_retry_required = False
-    for attempt in range(1, max_retries + 1):
+
+def repair_analysis_language(analysis: dict, max_attempts: int = 2) -> dict:
+    """Translate invalid text fields only. Never re-infer or replace decisions."""
+    invalid = [(path, text) for path, text in collect_natural_language_fields(analysis)
+               if is_invalid_natural_language(text)]
+    if not invalid:
+        return analysis
+    keys = [f"field_{index}" for index in range(len(invalid))]
+    original_texts = {key: localize_enum_mentions(text) for key, (_, text) in zip(keys, invalid)}
+    completed = {}
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        pending = {key: text for key, text in original_texts.items() if key not in completed}
+        schema = {"type": "object", "properties": {
+            key: {"type": "string", "description": "원문을 한국어로 번역한 문장"} for key in pending},
+            "required": list(pending), "additionalProperties": False}
+        prompt = ("당신은 영어를 한국어로 옮기는 번역기입니다. JSON의 key는 그대로 두고 value만 번역하세요. "
+                  "의미·부정·불확실성을 보존하고 사실이나 판단을 추가하지 마세요. "
+                  "영문 단어와 약자도 한글로 옮기세요. 예: squatting=쪼그려 앉음, "
+                  "lying on the ground=바닥에 누워 있음, roller compactor=노면 다짐 장비. "
+                  "입력과 같은 key를 빠짐없이 가진 JSON만 반환하세요.\n"
+                  + json.dumps(pending, ensure_ascii=False))
+        if attempt > 1:
+            prompt += "\n이 항목들은 이전 번역에서 누락되거나 영문이 남았습니다. 각 값을 완전한 한국어로 번역하세요."
         try:
-            request_prompt = prompt
-            if language_retry_required:
-                request_prompt = prompt + "\n\n" + LANGUAGE_RETRY_INSTRUCTION
-                logger.info("언어 재시도 - 분석 내용은 유지하고 자연어 필드만 한국어로 재생성")
-            data = request_ollama(
-                image_path=image_path,
-                image_base64=image_base64,
-                prompt=request_prompt,
-                attempt=attempt,
-            )
-            done = data.get("done", False)
-            done_reason = data.get("done_reason")
-            model = data.get("model", "")
-            content = data.get("response", "")
-            if not model or not content:
-                thinking = data.get("thinking", "")
-                if thinking:
-                    raise RuntimeError("Ollama가 response 대신 thinking 응답만 반환했습니다.")
-                raise RuntimeError("Ollama가 빈 응답을 반환했습니다.\n" f"전체 응답: {data}")
-            if not done:
-                raise RuntimeError(
-                    "Ollama 추론이 정상적으로 완료되지 않았습니다.\n" f"전체 응답: {data}"
-                )
-            if done_reason == "length":
-                raise RuntimeError("VLM 응답이 출력 길이 제한에 도달했습니다.")
-            parsed = parse_json_response(content)
-            parsed = normalize_worker_ids(parsed)
-            validate_analysis_schema(parsed)
-            validate_korean_output(parsed)
-            logger.info(
-                "VLM 분석 완료 - image=%s, attempt=%s, elapsed=%.2fs",
-                image_path.name,
-                attempt,
-                time.perf_counter() - analysis_started,
-            )
-            return json.dumps(parsed, ensure_ascii=False, indent=2)
-        except LanguageValidationError as error:
-            last_error = error
-            language_retry_required = True
-            logger.warning(
-                "VLM 언어 검증 재시도 - image=%s, attempt=%s/%s, reason=%s",
-                image_path.name,
-                attempt,
-                max_retries,
-                error,
-            )
-            if attempt < max_retries:
-                logger.info(
-                    "한국어 출력 규칙을 강화하여 %.1f초 후 다시 시도합니다.",
-                    RETRY_DELAY_SECONDS,
-                )
-                time.sleep(RETRY_DELAY_SECONDS)
+            data = request_ollama(Path("language_repair"), None, prompt, attempt, schema=schema)
+            if not data.get("done") or data.get("done_reason") == "length":
+                raise LanguageValidationError("번역 응답이 완결되지 않았습니다.")
+            translated_fields = parse_json_response(data.get("response", ""))
+            for key in pending:
+                text = translated_fields.get(key)
+                if isinstance(text, str):
+                    text = localize_enum_mentions(text)
+                if isinstance(text, str) and text.strip() and not is_invalid_natural_language(text):
+                    completed[key] = text
+            if len(completed) != len(keys):
+                raise LanguageValidationError("번역에서 누락되거나 언어 검증에 실패한 항목이 있습니다.")
+            result = deepcopy(analysis)
+            for key, (path, _) in zip(keys, invalid):
+                parts = re.findall(r"[A-Za-z_]+|\d+", path)
+                target = result
+                for part in parts[:-1]:
+                    target = target[int(part)] if isinstance(target, list) else target[part]
+                last_key = int(parts[-1]) if isinstance(target, list) else parts[-1]
+                target[last_key] = completed[key]
+            validate_korean_output(result)
+            logger.info("언어 필드만 번역 완료 - fields=%s, attempt=%s", len(invalid), attempt)
+            return result
         except Exception as error:
             last_error = error
-            logger.warning(
-                "VLM 분석 재시도 - image=%s, attempt=%s/%s, reason=%s",
-                image_path.name,
-                attempt,
-                max_retries,
-                error,
-            )
+            logger.warning("언어 필드 번역 실패 - attempt=%s/%s remaining=%s",
+                           attempt, max_attempts, len(keys)-len(completed))
+    raise LanguageValidationError("언어 필드 번역에 실패했습니다. 이미지 판단을 다시 생성하지 않습니다.") from last_error
+
+
+class AnalysisLanguageError(RuntimeError):
+    """Valid structured observations exist, but their explanation could not be localized."""
+    def __init__(self, message, analysis):
+        super().__init__(message)
+        self.analysis = deepcopy(analysis)
+
+
+def analyze_image(image_path: str | Path, prompt: str | None = None, max_retries: int = 3) -> str:
+    if max_retries < 1:
+        raise ValueError("max_retries는 1 이상이어야 합니다.")
+    started = time.perf_counter()
+    image_path = validate_image(image_path)
+    prompt = load_video_prompt() if prompt is None else prompt
+    image_base64 = prepare_image_base64(image_path)
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            data = request_ollama(image_path, image_base64, prompt, attempt)
+            if not data.get("model") or not data.get("response"):
+                raise OllamaBadJSON("Ollama가 정상 response를 반환하지 않았습니다.")
+            if not data.get("done") or data.get("done_reason") == "length":
+                raise OllamaBadJSON("VLM 응답이 완결되지 않았습니다.")
+            parsed = normalize_worker_ids(parse_json_response(data["response"]))
+            validate_analysis_schema(parsed)
+            try:
+                validate_korean_output(parsed)
+            except LanguageValidationError:
+                parsed = repair_analysis_language(parsed, max_attempts=min(2, max_retries))
+            logger.info("VLM 분석 완료 - image=%s, attempt=%s, elapsed=%.2fs",
+                        image_path.name, attempt, time.perf_counter()-started)
+            return json.dumps(parsed, ensure_ascii=False, indent=2)
+        except LanguageValidationError as error:
+            raise AnalysisLanguageError(f"{image_path.name} 언어 검증 실패; 원래 판단은 재생성하지 않음", parsed) from error
+        except Exception as error:
+            last_error = error
+            logger.warning("VLM 분석 재시도 - image=%s, attempt=%s/%s, reason=%s",
+                           image_path.name, attempt, max_retries, error)
             if attempt < max_retries:
-                logger.info("%.1f초 후 다시 시도합니다.", RETRY_DELAY_SECONDS)
                 time.sleep(RETRY_DELAY_SECONDS)
     raise RuntimeError(f"{image_path.name} VLM 분석 최종 실패") from last_error
 

@@ -9,6 +9,7 @@ VALID_RISK_TYPES = (
     "UNFASTENED_SAFETY_HARNESS",
     "FALL_HAZARD",
     "BLOCKED_PATH",
+    "COLLAPSE",
 )
 
 CONFIDENCE_SCORE = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
@@ -20,6 +21,7 @@ MIN_DETECTION_COUNT = {
     "UNFASTENED_SAFETY_HARNESS": 2,
     "FALL_HAZARD": 2,
     "BLOCKED_PATH": 2,
+    "COLLAPSE": 2,
 }
 
 
@@ -113,7 +115,8 @@ def _collect_risk_buckets(
     timeline: list[tuple[str, list[dict[str, Any]] | None]],
 ) -> dict[str, dict[str, Any]]:
     buckets: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"frames": [], "evidence": [], "confidence_by_frame": {}}
+        lambda: {"frames": [], "evidence": [], "confidence_by_frame": {}, "context_review_required": False, "visual_review_required": False, "observation_conflict_required": False,
+                 "confirmation_positions": set(), "confirmation_observations": [], "confirmation_missing": []}
     )
 
     for frame_index, (frame_name, hazards) in enumerate(timeline):
@@ -138,6 +141,16 @@ def _collect_risk_buckets(
 
             for risk_type in risk_types:
                 bucket = buckets[risk_type]
+                bucket["context_review_required"] |= bool(hazard.get("context_review_required"))
+                bucket["visual_review_required"] |= bool(hazard.get("visual_review_required"))
+                bucket["observation_conflict_required"] |= bool(hazard.get("observation_conflict_required"))
+                if hazard.get("confirmation_eligible"):
+                    if frame_index not in bucket["confirmation_positions"]:
+                        bucket["confirmation_observations"].append({
+                            "frame": frame_name, "worker_ids": hazard.get("worker_ids", []),
+                            "visual_evidence": hazard.get("visual_evidence", []), "evidence": evidence})
+                    bucket["confirmation_positions"].add(frame_index)
+                bucket["confirmation_missing"].extend(hazard.get("confirmation_missing", []))
                 if risk_type not in frame_seen_risks:
                     bucket["frames"].append(frame_name)
                     frame_seen_risks.add(risk_type)
@@ -204,14 +217,29 @@ def aggregate_frame_results(
         )
         max_consecutive_count = calculate_max_consecutive_count(detection_flags)
 
+        confirmation_flags = [int(index in data["confirmation_positions"]) for index in range(len(timeline))]
+        confirmation_window = min(temporal_window_size, len(timeline))
+        confirmation_window_max = max(sum(confirmation_flags[start:start+confirmation_window])
+                                      for start in range(len(timeline)-confirmation_window+1))
+        confirmation_ready = (len(data["confirmation_positions"]) >= required_count
+                              and confirmation_window_max >= required_count)
         scores = list(data["confidence_by_frame"].values())
         average_score = round(sum(scores) / len(scores), 3) if scores else 1.0
 
         aggregated_results.append(
             {
                 "risk_type": risk_type,
+                "context_review_required": data["context_review_required"],
+                "visual_review_required": data["visual_review_required"],
+                "observation_conflict_required": data["observation_conflict_required"],
                 "detected": True,
                 "detection_count": detection_count,
+                "confirmation_detection_count": len(data["confirmation_positions"]),
+                "confirmation_window_max": confirmation_window_max,
+                "confirmation_window_size": temporal_window_size,
+                "confirmation_ready": confirmation_ready,
+                "confirmation_observations": data["confirmation_observations"],
+                "confirmation_missing": unique_strings(data["confirmation_missing"]),
                 "required_count": required_count,
                 "meets_min_detection_count": meets_min_detection_count,
                 "total_frame_count": total_frame_count,

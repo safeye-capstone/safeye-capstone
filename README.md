@@ -82,6 +82,51 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.local.txt
 ```
 
+### 3-1. 11.06 작업본 추가 패키지 설치
+
+사람 위치 기반 확대 검토와 쓰러짐 후보 검증까지 실행하려면 아래 설치를 추가합니다. 기존 `.venv`를 사용하는 팀원도 활성화 후 실행합니다. 로컬에서 확인한 환경은 Windows 64비트, Python 3.12.7이며, 아래는 CPU 실행 기준입니다.
+
+```powershell
+python -m pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -r requirements.collapse.txt
+python -m pip check
+```
+
+`requirements.collapse.txt`는 `requirements.local.txt`를 포함하므로 새 환경에서도 위 명령으로 기본 서버·RAG 의존성과 추가 의존성을 함께 설치할 수 있습니다.
+
+| 추가 패키지 | 버전 | 용도 |
+| --- | --- | --- |
+| ultralytics | 8.4.202 | YOLO11s 사람 검출, ByteTrack 추적 |
+| mediapipe | 1.2.2 | 후보 구간에서 사람별 자세·쓰러짐 조건 확인 |
+| lap | 0.5.14 | ByteTrack의 검출·추적 연결 |
+| torch / torchvision | 2.9.1+cpu / 0.24.1+cpu | 로컬에서 확인한 CPU 추론 조합 |
+
+현재 사람 검출과 쓰러짐 검증 코드는 `device='cpu'`를 사용합니다. CUDA 패키지 설치만으로 GPU 실행으로 바뀌지는 않습니다. `torch`와 `torchvision`의 버전이 맞지 않으면 `torchvision::nms` 등의 오류가 발생할 수 있으므로 두 패키지를 함께 맞춥니다.
+
+### 3-2. YOLO·MediaPipe 모델 준비
+
+모델 파일은 Git에 포함되지 않으므로 각자 한 번 내려받아야 합니다. 아래 명령은 `vlm-workspace`에서 실행하며, 이미 있는 모델은 덮어쓰지 않습니다.
+
+```powershell
+New-Item -ItemType Directory -Force models | Out-Null
+if (-not (Test-Path models/yolo11s.pt)) {
+    curl.exe --fail --location "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s.pt" --output models/yolo11s.pt
+}
+if (-not (Test-Path models/pose_landmarker_lite.task)) {
+    curl.exe --fail --location "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task" --output models/pose_landmarker_lite.task
+}
+```
+
+필요한 파일은 `models/yolo11s.pt`와 `models/pose_landmarker_lite.task`입니다. YOLO는 자세 모델인 `yolo11s-pose.pt`가 아니라 사람 검출 모델을 사용합니다. 모델 안내: [Ultralytics YOLO11](https://docs.ultralytics.com/models/yolo11/), [MediaPipe Pose Landmarker](https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker).
+
+패키지와 모델 로딩 확인:
+
+```powershell
+python -c "import torch, torchvision, mediapipe, lap; from ultralytics import YOLO; from pathlib import Path; YOLO('models/yolo11s.pt'); p=mediapipe.tasks.vision.PoseLandmarker.create_from_options(mediapipe.tasks.vision.PoseLandmarkerOptions(base_options=mediapipe.tasks.BaseOptions(model_asset_buffer=Path('models/pose_landmarker_lite.task').read_bytes()))); p.close(); print('패키지 및 모델 로딩 완료')"
+```
+
+모델이나 패키지가 없으면 확대 검토·쓰러짐 추가 검증이 실패하고 위험 후보가 검토 상태로 남을 수 있습니다. 서버의 `/health` 응답만으로 이 추가 기능의 준비 상태까지 확인할 수는 없습니다.
+
 ## 4. Ollama 연결 확인 (고정 원격 서버)
 
 Ollama는 각자 PC에 설치하지 않습니다. 아래 고정 원격 주소를 공용으로 사용합니다.
@@ -281,6 +326,25 @@ vlm-workspace\data\videos\test.mp4
 ```text
 vlm-workspace\data\results\test_analysis.json
 ```
+
+## 11.06 작업본 테스트 영상 실행 안내
+
+`data/videos/`의 MP4 7개는 이전 커밋에 포함돼 있습니다: `1_2collapse.mp4`, `collapse.mp4`, `collapse_back.mp4`, `demo2.mp4`, `squat.mp4`, `test2.mp4`, `test3.mp4`.
+
+위의 `python -m app.pipeline` 예시는 `data/videos/test.mp4`를 고정으로 읽습니다. 저장소에 포함된 영상을 바로 시험하려면 FastAPI의 `/docs`에서 `POST /api/vlm/analyze/video`에 MP4를 선택하거나, `vlm-workspace`에서 아래처럼 파일명을 지정합니다. 실제 VLM·법령 검색 시험에는 원격 Ollama 연결과 앞서 안내한 RAG Vector DB 구축이 필요합니다.
+
+```powershell
+python -c "from app.pipeline import analyze_video, save_result; print(save_result(analyze_video('1_2collapse.mp4', verbose=True)))"
+```
+
+쓰러짐 연동만 빠르게 확인하는 스모크 테스트:
+
+```powershell
+New-Item -ItemType Directory -Force pose_results | Out-Null
+python scripts/smoke_collapse_pipeline.py
+```
+
+스모크 테스트는 실제 영상을 디코딩하고 YOLO·MediaPipe를 실행하지만, VLM 후보 생성과 법령 검색은 모의 응답을 사용합니다. 따라서 실제 VLM·RAG 동작 확인은 위의 영상 API 또는 `analyze_video` 실행으로 진행합니다. 스모크 테스트 결과는 `pose_results/collapse_pipeline_smoke.json`에 저장되며 Git 업로드 대상에서는 제외됩니다.
 
 # 영상 분석 흐름
 

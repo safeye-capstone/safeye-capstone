@@ -1,4 +1,5 @@
 from typing import Any
+from app.rag.confirmation_evidence import merge_frame_candidates
 
 
 # ============================================================
@@ -10,6 +11,7 @@ VALID_RISK_TYPES = {
     "UNFASTENED_SAFETY_HARNESS",
     "FALL_HAZARD",
     "BLOCKED_PATH",
+    "COLLAPSE",
 }
 
 
@@ -18,6 +20,10 @@ VALID_RISK_TYPES = {
 # ============================================================
 
 SEARCH_QUERY_MAP = {
+    "COLLAPSE": (
+        "작업자 쓰러짐 의심 후 현장 사고 대응을 위한 구급용구 및 응급처치 준비 기준. "
+        "부상자 응급처치, 구급용구 비치와 관리, 들것 관련 기준"
+    ),
     "NO_HELMET": (
         "산업현장에서 근로자가 안전모를 착용하지 않은 상황. "
         "안전모, 보호구의 지급, 보호구 착용, "
@@ -196,7 +202,9 @@ def normalize_vlm_analysis(
 
         evidence = (hazard.get("evidence", "") or "").strip()
 
+        original_state = (detected, confidence, proximity, evidence)
         for risk_type in risk_types:
+            detected, confidence, proximity, evidence = original_state
             # ------------------------------------------------
             # 안전대 위험 안전장치
             #
@@ -215,7 +223,8 @@ def normalize_vlm_analysis(
                 and detected
                 and not has_harness_violation
             ):
-                detected = False
+                detected = not bool(analysis.get("workers")) or not all(
+                    worker.get("work_level") == "GROUND" for worker in analysis.get("workers", []))
                 confidence = "LOW"
                 proximity = "UNCERTAIN"
                 evidence = (
@@ -226,6 +235,9 @@ def normalize_vlm_analysis(
             normalized_hazards.append(
                 {
                     "risk_type": risk_type,
+                    "candidate_source": "vlm",
+                    "worker_ids": list(hazard.get("worker_ids") or []),
+                    "visual_evidence": list(hazard.get("visual_evidence") or []),
                     "detected": detected,
                     "confidence": confidence,
                     "proximity": proximity,
@@ -251,8 +263,11 @@ def normalize_vlm_analysis(
             normalized_hazards.append(
                 {
                     "risk_type": "NO_HELMET",
+                    "candidate_source": "worker_supplement",
+                    "worker_ids": [worker_id],
+                    "visual_evidence": [],
                     "detected": True,
-                    "confidence": "HIGH",
+                    "confidence": "LOW",
                     "proximity": "UNCERTAIN",
                     "evidence": (
                         f"작업자 {worker_id}가 "
@@ -292,8 +307,11 @@ def normalize_vlm_analysis(
             normalized_hazards.append(
                 {
                     "risk_type": "UNFASTENED_SAFETY_HARNESS",
+                    "candidate_source": "worker_supplement",
+                    "worker_ids": [worker_id],
+                    "visual_evidence": [],
                     "detected": True,
-                    "confidence": "HIGH",
+                    "confidence": "LOW",
                     "proximity": "IMMEDIATE",
                     "evidence": evidence,
                 }
@@ -311,6 +329,9 @@ def normalize_vlm_analysis(
             hazard.get("risk_type"),
             hazard.get("detected"),
             hazard.get("evidence"),
+            tuple(hazard.get("worker_ids", [])),
+            tuple(hazard.get("visual_evidence", [])),
+            hazard.get("candidate_source"),
         )
 
         if key in seen:
@@ -319,7 +340,33 @@ def normalize_vlm_analysis(
         seen.add(key)
         unique_hazards.append(hazard)
 
-    analysis["hazards"] = unique_hazards
+    context = analysis.get("scene_context", {}).get("category")
+    stable_postures = {"UPRIGHT", "SITTING", "SQUATTING", "KNEELING", "BENT_OVER"}
+    workers = analysis.get("workers", [])
+    all_stable = bool(workers) and all(worker.get("posture") in stable_postures for worker in workers)
+    for hazard in unique_hazards:
+        if hazard["risk_type"] == "COLLAPSE":
+            if hazard["detected"] and all_stable and hazard["confidence"] == "LOW":
+                hazard["observed_detected"] = True
+                hazard["detected"] = False
+                hazard["applicability_status"] = "POSTURE_CONTRADICTION"
+                hazard["applicability_reason"] = "모든 사람의 관찰 자세가 안정된 상태여서 쓰러짐 후보와 모순됨"
+            continue
+        if context == "NON_INDUSTRIAL":
+            hazard["observed_detected"] = hazard["detected"]
+            hazard["detected"] = False
+            hazard["applicability_status"] = "NOT_INDUSTRIAL_CONTEXT"
+            hazard["applicability_reason"] = "비산업 활동의 보호구·작업 조건을 산업 위험으로 확정하지 않음"
+        elif hazard["detected"] and hazard["risk_type"] == "FALL_HAZARD" and not any(
+                feature in hazard["evidence"].replace(" ", "") for feature in
+                ("개구부", "가장자리", "단부", "단차", "구덩이", "낭떠러지", "높은작업", "고소작업", "비계", "사다리", "작업발판")):
+            hazard["visual_review_required"] = True
+            hazard["confidence"] = "LOW"
+            hazard["visual_review_reason"] = "발걸음·자세 불안정만으로는 추락할 높이·개구부·가장자리의 관찰 근거가 부족함"
+        if context == "UNCERTAIN" and hazard["detected"]:
+            hazard["context_review_required"] = True
+            hazard["confidence"] = "LOW"
+    analysis["hazards"] = merge_frame_candidates(unique_hazards, workers, context)
 
     return analysis
 
@@ -416,6 +463,10 @@ def build_search_query(hazard: dict[str, Any]) -> str:
     # ========================================================
     # 최종 Query
     # ========================================================
+
+    if risk_type == "COLLAPSE":
+        # 자세 묘사는 관찰 기록에 남기고 법령 검색에는 대응 개념만 전달한다.
+        return f"{marker} {base_query}"
 
     if evidence_text:
         return (
