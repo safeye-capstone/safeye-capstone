@@ -1,10 +1,3 @@
-SEVERITY_ORDER = {
-    "INFO": 1,
-    "WARNING": 2,
-    "CRITICAL": 3,
-}
-
-
 def get_detected_hazards(analysis: dict) -> list[dict]:
     return [
         hazard

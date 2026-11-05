@@ -1,7 +1,7 @@
-"""Ollama HTTP 클라이언트.
+"""Ollama 및 Gemini HTTP 클라이언트.
 develop 브랜치의 비동기 로컬 노드용 OllamaClient와
 기존 VLM 파이프라인에서 사용하는 analyze_image()를 함께 제공한다.
-- FastAPI 로컬 노드: OllamaClient.chat_json()
+- FastAPI 로컬 노드: 공급자별 chat_json()
 - 기존 이미지 파이프라인: analyze_image()
 """
 
@@ -15,10 +15,11 @@ import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Protocol
 import httpx
 from app.local.config import (
     FRAME_DIR,
-    VIDEO_ANALYSIS_PROMPT,
+    IMAGE_ANALYSIS_PROMPT,
     VLM_MODEL,
     local_settings as cfg,
 )
@@ -30,7 +31,6 @@ _FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.MULTILINE)
 LEGACY_MAX_IMAGE_SIDE = 1280
 LEGACY_JPEG_QUALITY = 90
 LEGACY_NUM_PREDICT = 1200
-RETRY_DELAY_SECONDS = 3.0
 _SYNC_REQUEST_LOCK = threading.Lock()
 OUTPUT_CONSTRAINTS = """
 [출력 규칙]
@@ -170,6 +170,10 @@ class OllamaTimeout(OllamaError):
 
 class OllamaBadJSON(OllamaError):
     """모델 응답이 비어 있거나 JSON으로 파싱되지 않는 상태."""
+
+
+class VLMTransientError(OllamaError):
+    """잠시 뒤 재시도할 수 있는 공급자 측 과부하 또는 제한 오류."""
 
 
 class LanguageValidationError(RuntimeError):
@@ -456,14 +460,205 @@ class OllamaClient:
             return False
 
 
-def load_video_prompt() -> str:
-    if not VIDEO_ANALYSIS_PROMPT.exists():
-        raise FileNotFoundError(
-            "영상 분석 프롬프트를 찾을 수 없습니다.\n" f"경로: {VIDEO_ANALYSIS_PROMPT}"
+class VLMClient(Protocol):
+    """로컬 노드가 필요로 하는 공급자 공통 계약."""
+
+    model: str
+    timeout: httpx.Timeout
+
+    async def chat_json(
+        self,
+        image_bytes: bytes,
+        prompt: str,
+        json_schema: dict,
+        *,
+        model: str | None = None,
+        options: dict | None = None,
+    ) -> tuple[dict, OllamaTiming]: ...
+
+    async def warmup(self, model: str | None = None) -> float: ...
+
+    async def unload(self, model: str | None = None) -> None: ...
+
+    async def tags(self) -> list[dict]: ...
+
+    async def ps(self) -> list[dict]: ...
+
+    async def loaded_vram_mb(self, model: str | None = None) -> float: ...
+
+    async def alive(self) -> bool: ...
+
+
+class GeminiClient:
+    """Gemini GenerateContent API를 로컬 노드 공통 계약으로 감싼다."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        api_key: str,
+        model: str,
+        connect_timeout: float = 3.0,
+        read_timeout: float = 60.0,
+        temperature: float = 0.1,
+        max_output_tokens: int = 1200,
+        response_mime_type: str = "application/json",
+    ):
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.model = model
+        self.temperature = temperature
+        self.max_output_tokens = max_output_tokens
+        self.response_mime_type = response_mime_type
+        self.connect_timeout = connect_timeout
+        self.timeout = httpx.Timeout(
+            connect=connect_timeout,
+            read=read_timeout,
+            write=10.0,
+            pool=5.0,
         )
-    prompt = VIDEO_ANALYSIS_PROMPT.read_text(encoding="utf-8").strip()
+        self._request_lock = asyncio.Lock()
+
+    def _url(self, model: str | None = None) -> str:
+        return f"{self.base_url}/models/{model or self.model}:generateContent"
+
+    def _headers(self) -> dict[str, str]:
+        if not self.api_key:
+            raise OllamaUnreachable("LN_GEMINI_API_KEY가 설정되지 않았습니다.")
+        return {"x-goog-api-key": self.api_key}
+
+    def _payload(self, image_bytes: bytes, prompt: str, options: dict | None) -> dict:
+        settings = options or {}
+        return {
+            "contents": [{
+                "role": "user",
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": base64.b64encode(image_bytes).decode("ascii"),
+                        }
+                    },
+                ],
+            }],
+            "generationConfig": {
+                "responseMimeType": self.response_mime_type,
+                "responseJsonSchema": VLM_SCHEMA,
+                "temperature": settings.get("temperature", self.temperature),
+                "maxOutputTokens": settings.get(
+                    "max_output_tokens", self.max_output_tokens
+                ),
+            },
+        }
+
+    @staticmethod
+    def _content(body: dict) -> str:
+        try:
+            return body["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, TypeError) as error:
+            raise OllamaBadJSON(f"Gemini 응답 형식 오류: {body}") from error
+
+    async def chat_json(
+        self,
+        image_bytes: bytes,
+        prompt: str,
+        json_schema: dict,
+        *,
+        model: str | None = None,
+        options: dict | None = None,
+    ) -> tuple[dict, OllamaTiming]:
+        try:
+            async with self._request_lock:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(
+                        self._url(model),
+                        headers=self._headers(),
+                        json=self._payload(image_bytes, prompt, options),
+                    )
+                    response.raise_for_status()
+                    body = response.json()
+        except (httpx.ConnectError, httpx.ConnectTimeout) as error:
+            raise OllamaUnreachable(f"Gemini unreachable: {self.base_url} ({error})") from error
+        except (httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as error:
+            raise OllamaTimeout("Gemini 이미지 분석 read timeout") from error
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code in {429, 503}:
+                raise VLMTransientError(
+                    f"Gemini HTTP {error.response.status_code}: "
+                    f"{error.response.text[:200]}"
+                ) from error
+            raise OllamaError(
+                f"Gemini HTTP {error.response.status_code}: {error.response.text[:200]}"
+            ) from error
+        except ValueError as error:
+            raise OllamaBadJSON("Gemini가 JSON이 아닌 HTTP 응답을 반환했습니다.") from error
+
+        parsed = decode_json_object(self._content(body))
+        missing_keys = set(json_schema.get("required", ())).difference(parsed)
+        if missing_keys:
+            missing = ", ".join(sorted(missing_keys))
+            raise OllamaBadJSON(f"incomplete JSON / missing_keys={missing}")
+        return parsed, OllamaTiming()
+
+    async def warmup(self, model: str | None = None) -> float:
+        return 0.0
+
+    async def unload(self, model: str | None = None) -> None:
+        return None
+
+    async def tags(self) -> list[dict]:
+        return [{"name": self.model, "provider": "gemini"}]
+
+    async def ps(self) -> list[dict]:
+        return []
+
+    async def loaded_vram_mb(self, model: str | None = None) -> float:
+        return 0.0
+
+    async def alive(self) -> bool:
+        return bool(self.api_key)
+
+
+def create_vlm_client() -> VLMClient:
+    """환경변수로 선택된 VLM 공급자 클라이언트를 만든다."""
+    if cfg.vlm_provider == "ollama":
+        return OllamaClient(
+            base_url=cfg.ollama_base_url,
+            model=cfg.model,
+            connect_timeout=cfg.connect_timeout,
+            read_timeout=cfg.read_timeout,
+            keep_alive=cfg.keep_alive,
+            num_ctx=cfg.num_ctx,
+            num_predict=cfg.num_predict,
+            temperature=cfg.temperature,
+            think=cfg.think,
+        )
+    if cfg.vlm_provider == "gemini":
+        return GeminiClient(
+            base_url=cfg.gemini_base_url,
+            api_key=cfg.gemini_api_key,
+            model=cfg.gemini_model,
+            connect_timeout=cfg.connect_timeout,
+            read_timeout=cfg.read_timeout,
+            temperature=cfg.temperature,
+            max_output_tokens=cfg.gemini_max_output_tokens,
+            response_mime_type=cfg.gemini_response_mime_type,
+        )
+    raise ValueError(
+        "LN_VLM_PROVIDER는 'ollama' 또는 'gemini'여야 합니다: "
+        f"{cfg.vlm_provider!r}"
+    )
+
+
+def load_image_prompt() -> str:
+    if not IMAGE_ANALYSIS_PROMPT.exists():
+        raise FileNotFoundError(
+            "이미지 분석 프롬프트를 찾을 수 없습니다.\n" f"경로: {IMAGE_ANALYSIS_PROMPT}"
+        )
+    prompt = IMAGE_ANALYSIS_PROMPT.read_text(encoding="utf-8").strip()
     if not prompt:
-        raise ValueError("video_analysis.txt가 비어 있습니다.")
+        raise ValueError("image_analysis.txt가 비어 있습니다.")
     return prompt + "\n\n" + OUTPUT_CONSTRAINTS
 
 
@@ -672,6 +867,151 @@ def request_ollama(
     return data
 
 
+def request_gemini(
+    image_path: Path,
+    image_base64: str,
+    prompt: str,
+    attempt: int,
+) -> dict:
+    """Gemini 응답을 기존 analyze_image()가 기대하는 Ollama 호환 dict로 정규화한다."""
+    if not cfg.gemini_api_key:
+        raise OllamaUnreachable("LN_GEMINI_API_KEY가 설정되지 않았습니다.")
+
+    temperature = min(0.10 + (attempt - 1) * 0.05, 0.20)
+    payload = {
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"text": prompt},
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": image_base64,
+                    }
+                },
+            ],
+        }],
+        "generationConfig": {
+            "responseMimeType": cfg.gemini_response_mime_type,
+            "responseJsonSchema": VLM_SCHEMA,
+            "temperature": temperature,
+            "maxOutputTokens": cfg.gemini_max_output_tokens,
+        },
+    }
+    timeout = httpx.Timeout(
+        connect=cfg.connect_timeout,
+        read=max(cfg.read_timeout, 90.0),
+        write=30.0,
+        pool=5.0,
+    )
+    request_started = time.perf_counter()
+    try:
+        with _SYNC_REQUEST_LOCK:
+            with httpx.Client(timeout=timeout) as client:
+                response = client.post(
+                    f"{cfg.gemini_base_url.rstrip('/')}/models/"
+                    f"{cfg.gemini_model}:generateContent",
+                    headers={"x-goog-api-key": cfg.gemini_api_key},
+                    json=payload,
+                )
+                if not response.is_success:
+                    logger.error(
+                        "Gemini HTTP 오류 - status=%s, response=%r",
+                        response.status_code,
+                        response.text[:2000],
+                    )
+                response.raise_for_status()
+                body = response.json()
+    except (httpx.ConnectError, httpx.ConnectTimeout) as error:
+        raise OllamaUnreachable(
+            f"Gemini unreachable: {cfg.gemini_base_url} ({error})"
+        ) from error
+    except (httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as error:
+        raise OllamaTimeout("Gemini 이미지 분석 read timeout") from error
+    except httpx.HTTPStatusError as error:
+        if error.response.status_code in {429, 503}:
+            raise VLMTransientError(
+                f"Gemini HTTP {error.response.status_code}: "
+                f"{error.response.text[:200]}"
+            ) from error
+        raise OllamaError(
+            f"Gemini HTTP {error.response.status_code}: {error.response.text[:200]}"
+        ) from error
+    except ValueError as error:
+        raise OllamaBadJSON("Gemini HTTP 응답 자체가 JSON이 아닙니다.") from error
+
+    content = GeminiClient._content(body)
+    logger.info(
+        "Gemini 응답 - image=%s, status=%s, model=%s, elapsed=%.2fs",
+        image_path.name,
+        response.status_code,
+        cfg.gemini_model,
+        time.perf_counter() - request_started,
+    )
+    return {
+        "model": cfg.gemini_model,
+        "response": content,
+        "done": True,
+        "done_reason": "stop",
+    }
+
+
+class ImageVLMProvider(Protocol):
+    """기존 analyze_image()가 쓰는 동기 이미지 생성 계약."""
+
+    def generate(
+        self,
+        image_path: Path,
+        image_base64: str,
+        prompt: str,
+        attempt: int,
+    ) -> dict: ...
+
+
+class OllamaImageProvider:
+    def generate(
+        self,
+        image_path: Path,
+        image_base64: str,
+        prompt: str,
+        attempt: int,
+    ) -> dict:
+        return request_ollama(image_path, image_base64, prompt, attempt)
+
+
+class GeminiImageProvider:
+    def generate(
+        self,
+        image_path: Path,
+        image_base64: str,
+        prompt: str,
+        attempt: int,
+    ) -> dict:
+        return request_gemini(image_path, image_base64, prompt, attempt)
+
+
+def create_image_vlm_provider() -> ImageVLMProvider:
+    """환경변수로 선택된 동기 이미지 공급자 어댑터를 만든다."""
+    if cfg.vlm_provider == "ollama":
+        return OllamaImageProvider()
+    if cfg.vlm_provider == "gemini":
+        return GeminiImageProvider()
+    raise ValueError(
+        "LN_VLM_PROVIDER는 'ollama' 또는 'gemini'여야 합니다: "
+        f"{cfg.vlm_provider!r}"
+    )
+
+
+def retry_delay_seconds(attempt: int, error: Exception) -> float:
+    """429/503은 공급자 회복 시간을 주고, 그 외 오류는 짧게 재시도한다."""
+    if isinstance(error, VLMTransientError):
+        return min(
+            cfg.retry_delay_sec * (2 ** (attempt - 1)),
+            cfg.retry_backoff_max_sec,
+        )
+    return cfg.retry_delay_sec
+
+
 def analyze_image(
     image_path: str | Path,
     prompt: str | None = None,
@@ -683,8 +1023,9 @@ def analyze_image(
     analysis_started = time.perf_counter()
     image_path = validate_image(image_path)
     if prompt is None:
-        prompt = load_video_prompt()
+        prompt = load_image_prompt()
     image_base64 = prepare_image_base64(image_path)
+    provider = create_image_vlm_provider()
     last_error: Exception | None = None
     language_retry_required = False
     for attempt in range(1, max_retries + 1):
@@ -693,7 +1034,7 @@ def analyze_image(
             if language_retry_required:
                 request_prompt = prompt + "\n\n" + LANGUAGE_RETRY_INSTRUCTION
                 logger.info("언어 재시도 - 분석 내용은 유지하고 자연어 필드만 한국어로 재생성")
-            data = request_ollama(
+            data = provider.generate(
                 image_path=image_path,
                 image_base64=image_base64,
                 prompt=request_prompt,
@@ -736,11 +1077,12 @@ def analyze_image(
                 error,
             )
             if attempt < max_retries:
+                delay = retry_delay_seconds(attempt, error)
                 logger.info(
                     "한국어 출력 규칙을 강화하여 %.1f초 후 다시 시도합니다.",
-                    RETRY_DELAY_SECONDS,
+                    delay,
                 )
-                time.sleep(RETRY_DELAY_SECONDS)
+                time.sleep(delay)
         except Exception as error:
             last_error = error
             logger.warning(
@@ -751,8 +1093,9 @@ def analyze_image(
                 error,
             )
             if attempt < max_retries:
-                logger.info("%.1f초 후 다시 시도합니다.", RETRY_DELAY_SECONDS)
-                time.sleep(RETRY_DELAY_SECONDS)
+                delay = retry_delay_seconds(attempt, error)
+                logger.info("%.1f초 후 다시 시도합니다.", delay)
+                time.sleep(delay)
     raise RuntimeError(f"{image_path.name} VLM 분석 최종 실패") from last_error
 
 

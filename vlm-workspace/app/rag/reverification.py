@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from app.local.ollama_client import analyze_image, load_video_prompt
+from app.local.ollama_client import analyze_image, load_image_prompt
 from app.rag.query_builder import normalize_vlm_analysis
 
 
@@ -259,7 +259,7 @@ def build_reverification_prompt(
     위험별 재검증 지시만 추가한다.
     """
 
-    base_prompt = load_video_prompt()
+    base_prompt = load_image_prompt()
 
     return (
         base_prompt
