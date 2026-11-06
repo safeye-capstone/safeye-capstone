@@ -1,13 +1,11 @@
-import { normalizeSeverity } from "../../constants/severity";
+import { JUDGMENT, countByJudgment } from "../../constants/decisionState";
 import { start0fWeek } from "../../utils/date";
 
 function StatsSummary({ items = [], liveAlertCount = 0 }) {
   const weekStart = start0fWeek();
 
   const total = items.length;
-  const criticalCount = items.filter(
-    (item) => normalizeSeverity(item.severity) === "CRITICAL",
-  ).length;
+  const dangerCount = countByJudgment(items)[JUDGMENT.DANGER];
   const thisWeekCount = items.filter(
     (item) => item.detectedAt && new Date(item.detectedAt) >= weekStart,
   ).length;
@@ -16,8 +14,8 @@ function StatsSummary({ items = [], liveAlertCount = 0 }) {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatCard label="총 분석 건수" value={total} unit="건" />
       <StatCard
-        label="심각 발견"
-        value={criticalCount}
+        label="위험 발견"
+        value={dangerCount}
         unit="건"
         color="text-danger"
       />

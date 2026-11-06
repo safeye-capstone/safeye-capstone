@@ -11,30 +11,17 @@ export const CASE_LONG = {
     "산업안전보건기준에 관한 규칙 제32조(보호구의 지급 등) 및 제42조(추락의 방지), 제20조(출입의 금지 등) 제9호 — 콘크리트 타설작업 중 거푸집 붕괴 위험이 있는 장소",
   actionGuide:
     "1. 붐대 하부 통행 작업자를 즉시 대피시키고 펌프카 가동을 중지하십시오.\n2. 붐대 작업 반경에 출입금지 표지와 방호선을 설치하십시오.\n3. 안전대 착용 작업자는 걸이 설비 체결 여부를 확인한 뒤 작업을 재개하십시오.\n4. 작업 발판 단부에 안전난간을 설치하십시오.",
-  ragMetadata: { source: "산업안전보건기준에 관한 규칙", score: 0.91 },
+  ragMetadata: {
+    vlm_decision_state: "CONFIRMED",
+    source: "산업안전보건기준에 관한 규칙",
+    socre: 0.91,
+  },
   isResolved: false,
   detectedAt: "2026-09-09T02:14:33.512Z",
   resolvedAt: null,
 };
 
-/** 2. 안전 판정(INFO) — 정책 변경으로 안전 건도 DB에 저장됩니다 */
-export const CASE_SAFE = {
-  id: "7b2e5d91-8f43-4a6c-9e20-1a3b4c5d6e7f",
-  isDanger: false,
-  zoneName: "B동 자재창고",
-  severity: "INFO",
-  fileUrl: "http://localhost:8080/uploads/images/1c8d2f44.jpg",
-  vlmDescription:
-    "작업자 두 명이 안전모와 안전화를 착용한 상태로 자재를 적치하고 있습니다. 적치 높이는 안정적이며 통로 확보 상태도 양호합니다. 특이 위험 요소가 관찰되지 않습니다.",
-  violatedRegulation: "",
-  actionGuide: "",
-  ragMetadata: null,
-  isResolved: false,
-  detectedAt: "2026-09-09T03:05:12.447Z",
-  resolvedAt: null,
-};
-
-/** 3. 위험이지만 VLM이 일부 필드를 비워 보낸 경우 */
+/** 3. 경고인데 VLM이 일부 필드를 비워 보낸 경우 (벌령 키도 없음) */
 export const CASE_EMPTY = {
   id: "4e6b8a02-3c19-4d7f-b5a8-0f1e2d3c4b5a",
   isDanger: true,
@@ -44,7 +31,7 @@ export const CASE_EMPTY = {
   vlmDescription: "용접 작업 중 불티 비산 방지 덮개가 확인되지 않습니다.",
   violatedRegulation: null,
   actionGuide: null,
-  ragMetadata: {},
+  ragMetadata: { vlm_decision_state: "REVIEW_REQUIRED" },
   isResolved: false,
   detectedAt: "2026-09-09T02:41:07.883Z",
   resolvedAt: null,
@@ -120,7 +107,7 @@ export const CASE_REVIEW = {
   resolvedAt: null,
 };
 
-/** 6. AI가 오탐으로 기각 — 실제로는 영상에서만 발생. 회색, 경보 없음 */
+/** 6. AI가 오탐으로 기각 — 실제로는 영상에서만 발생. 안전 회색, 경보 없음 */
 export const CASE_REJECTED = {
   id: "c3e6a9b2-4d57-4f80-9c93-5a7b9d1f3e42",
   isDanger: false,
@@ -140,7 +127,7 @@ export const CASE_REJECTED = {
   resolvedAt: null,
 };
 
-/** 7. 위험 후보 없음 — 초록, 경보 없음 */
+/** 7. 위험 후보 없음 — 안전(회색 테두리), 경보 없음 */
 export const CASE_NO_DETECTION = {
   id: "d4f7b0c3-5e68-4a91-8da4-6b8c0e2a4f53",
   isDanger: false,
@@ -182,7 +169,7 @@ export const CASE_TOP_LEVEL = {
   resolvedAt: null,
 };
 
-/** 9. 판정 값이 UNKNOWN — 값이 없는 것과 같이 severity 기준으로 폴백 */
+/** 9. 판정 값이 UNKNOWN — 판정 불명. 개발자 화면에만 보이고 경보 없음 */
 export const CASE_UNKNOWN = {
   id: "f6b9d2e5-7a80-4c13-8fc6-8d0e2a4c6b75",
   isDanger: true,
@@ -206,6 +193,5 @@ export const MOCK_RESULTS = [
   CASE_TOP_LEVEL,
   CASE_UNKNOWN,
   CASE_LONG,
-  CASE_SAFE,
   CASE_EMPTY,
 ];
