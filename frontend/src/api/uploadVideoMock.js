@@ -1,3 +1,4 @@
+//   /analyze/video?mock&state=REVIEW_REQUIRED   판정 바꾸기 (CONFIRMED 기본, NO_DETECTION, UNKNOWN 등)
 import { ApiError } from "./apiError";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -11,6 +12,9 @@ export async function mockVideoRequest(file) {
   const params = new URLSearchParams(window.location.search);
   const mode = params.get("mock");
   const delaySec = Number(params.get("delay")) || 8;
+  const state = params.get("state") ?? "CONFIRMED";
+  const severity =
+    { CONFIRMED: "CRITICAL", REVIEW_REQUIRED: "WARNING" }[state] ?? "INFO";
 
   await wait(delaySec * 1000);
 
@@ -25,9 +29,9 @@ export async function mockVideoRequest(file) {
 
   return {
     id: crypto.randomUUID(),
-    isDanger: true,
+    isDanger: severity !== "INFO",
     zoneName: "목 데이터 구역",
-    severity: "CRITICAL",
+    severity,
     // 방금 고른 파일을 그대로 재생해서 <video> 렌더링을 확인
     fileUrl: URL.createObjectURL(file),
     vlmDescription:

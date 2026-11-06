@@ -1,20 +1,36 @@
 @import "tailwindcss";
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 
 @theme {
+  /* 새 디자인: 판정 */
+  --color-danger: #d92d20;
+  --color-on-danger: #ffffff;
+  --color-warn: #fdc52b;
+  --color-on-warn: #101418;
+  --color-warn-strong: #b54708;
+  --color-safe: #5b636e;
+
+  /* 새 디자인: 처리 상태 */
+  --color-checking: #1f5edb;
+  --color-done: #0f7a55;
+
+  /* 새 디자인: 글자, 선, 바탕 */
+  --color-ink: #101418; /* 글자, 주요 버튼 */
+  --color-ink-2: #3d4550; /* 보조 글자 */
+  --color-ink-3: #6b7380; /* 메타 정보 */
+  --color-line: #e3e6ea;
+  --color-canvas: #f3f4f6;
+
+  /* 옅은 바탕(? */
+  --color-danger-bg: #fdecea;
+  --color-warn-bg: #fff6d6;
+
+  /* ── 이전 토큰: 기존 화면이 쓰는 중. 화면을 옮기면서 정리 ── */
+  --color-muted: #6b7380; /* → ink-3 */
+  --color-border: #e3e6ea; /* → line */
+  --color-safe-bg: #f3f4f6;
   --color-accent: oklch(0.52 0.13 265);
-
-  --color-danger: oklch(0.45 0.18 25);
-  --color-danger-bg: oklch(0.94 0.04 25);
-
-  --color-warn: oklch(0.55 0.15 70);
-  --color-warn-bg: oklch(0.93 0.06 80);
-
-  --color-safe: oklch(0.5 0.13 145);
-  --color-safe-bg: oklch(0.93 0.05 145);
-
-  --color-muted: oklch(0.5 0.01 265);
-  --color-border: oklch(0.91 0.006 265);
-
+  --color-brand: oklch(0.6 0.15 265);
   --color-sidebar: oklch(0.2 0.025 265);
   --color-sidebar-divider: oklch(0.32 0.02 265);
   --color-sidebar-active: oklch(0.3 0.03 265);
@@ -22,16 +38,44 @@
   --color-sidebar-muted: oklch(0.6 0.02 265);
   --color-sidebar-hover: oklch(0.26 0.03 265);
 
-  --color-brand: oklch(0.6 0.15 265);
+  /* 글꼴 */
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 
-  --color-ink: oklch(0.2 0.01 265);
+  /* 숫자 48/800, 제목 26/800, 조치 20/700, 카드 제목 17/700, 본문 16/500, 메타 14/500 */
+  --text-display: 3rem;
+  --text-display--line-height: 1.1;
+  --text-display--font-weight: 800;
+  --text-title: 1.625rem;
+  --text-title--line-height: 1.3;
+  --text-title--font-weight: 800;
+  --text-action: 1.25rem;
+  --text-action--line-height: 1.4;
+  --text-action--font-weight: 700;
+  --text-card-title: 1.0625rem;
+  --text-card-title--line-height: 1.4;
+  --text-card-title--font-weight: 700;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5;
+  --text-body--font-weight: 500;
+  --text-caption: 0.875rem;
+  --text-caption--line-height: 1.4;
+  --text-caption--font-weight: 500;
 
-  --font-sans: "Gothic A1", sans-serif;
+  /* 간격: 기본 4px 단위가 디자인(4·8·12·16·24·32)과 같아서 그대로 씀 */
+  --spacing-tap: 3rem; /* 누르는 곳 최소 48px → h-tap, min-h-tap */
+  --spacing-cta: 3.5rem; /* 주요 버튼 56px → h-cta */
+
+  /* 모서리: 배지 7, 버튼 14, 카드 18 */
+  --radius-badge: 7px;
+  --radius-btn: 14px;
+  --radius-card: 18px;
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--color-ink);
-  background: oklch(0.97 0.004 265);
+  background: var(--color-canvas);
 }

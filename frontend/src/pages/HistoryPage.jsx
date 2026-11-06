@@ -2,16 +2,18 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";
 import DecisionBadge from "../components/common/DecisionBadge";
-import { DECISION_STATES, getDecisionState } from "../constants/decisionState";
+import {
+  JUDGMENT_META,
+  MANAGER_JUDGMENTS,
+  getJudgment,
+  isVisibleToManager,
+} from "../constants/decisionState";
 import { MOCK_HISTORY } from "../fixtures/mockHistory";
 import { formatDate } from "../utils/date";
 import SampleDataNotice from "../components/common/SampleDataNotice";
 import { FEATURE_RESULT_DETAIL } from "../constants/config";
 
 const PAGE_SIZE = 15;
-
-// 판정 값이 없는 건(과거 데이터)은 "판정 불명" 필터로 묶는다
-const getFilterKey = (item) => getDecisionState(item) ?? "UNKNOWN";
 
 function HistoryPage() {
   const [selected, setSelected] = useState([]);
@@ -24,13 +26,12 @@ function HistoryPage() {
     setPage(1);
   };
 
-  const filtered = useMemo(
-    () =>
-      selected.length === 0
-        ? MOCK_HISTORY
-        : MOCK_HISTORY.filter((item) => selected.includes(getFilterKey(item))),
-    [selected],
-  );
+  const filtered = useMemo(() => {
+    const visible = MOCK_HISTORY.filter(isVisibleToManager);
+    return selected.length === 0
+      ? visible
+      : visible.filter((item) => selected.includes(getJudgment(item)));
+  }, [selected]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, totalPages);
@@ -45,7 +46,8 @@ function HistoryPage() {
       </SampleDataNotice>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {DECISION_STATES.map(({ key, label }) => {
+        {MANAGER_JUDGMENTS.map((key) => {
+          const { label } = JUDGMENT_META[key];
           const active = selected.includes(key);
           return (
             <button
