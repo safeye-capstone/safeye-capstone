@@ -351,14 +351,17 @@ python scripts/smoke_collapse_pipeline.py
 ```text
 영상
 → 프레임 추출
-→ 프레임별 VLM 분석
-→ Temporal Aggregation
-→ Confidence Recalibration
-→ Semantic Prompt Reverification
-→ Final Decision
-→ Hazard Consolidation
+→ 프레임별 VLM 관찰 및 위험 후보 생성
+→ 추가 보호구 관찰 및 후보 보완
+→ Temporal Aggregation (후보 탐지 횟수·확정 근거 프레임 수 구분)
+→ Confidence Recalibration (일관성 점수 산정)
+→ 필요한 후보 재검증 (위험별 직접 관찰·사람별 확대 검토)
+→ Final Decision (확정·검토·제외)
+→ 쓰러짐 후보 구간 검증 (YOLO11s 추적 → MediaPipe 자세·하강·유지시간 확인)
+→ Hazard Consolidation (관련 위험 통합)
 → RAG 법령 검색
-→ 최종 응답
+→ 검토 확인 순서 및 ragMetadata 구성
+→ 최종 API 응답
 ```
 
 # 프로젝트 구조
@@ -373,10 +376,14 @@ safEYE-capstone/
    ├─ app/
    │  ├─ local/                     # VLM 호출 및 이미지/영상 처리
    │  ├─ rag/                       # 위험 통합, 신뢰도 평가 및 RAG
-   │  │  ├─ aggregator.py
+   │  │  ├─ aggregator.py           # 후보·확정 근거의 프레임별 집계
    │  │  ├─ confidence_calibrator.py
-   │  │  ├─ reverification.py
+   │  │  ├─ confirmation_evidence.py # 확정 근거 조건 검사
+   │  │  ├─ focused_observation.py  # 후보 보완 및 위험별 직접 관찰
+   │  │  ├─ spatial_review.py       # 사람별 확대 검토·묶음 처리
+   │  │  ├─ reverification.py       # 서로 다른 프레임의 추가 검증
    │  │  ├─ final_decision.py
+   │  │  ├─ collapse_verification.py # 쓰러짐 후보 구간 YOLO·MediaPipe 검증
    │  │  ├─ hazard_consolidator.py
    │  │  ├─ query_builder.py
    │  │  └─ regulation_retriever.py
@@ -387,6 +394,7 @@ safEYE-capstone/
    │  ├─ video_pipeline.py          # 영상 API 연결
    │  ├─ pipeline.py                # 영상 전체 분석 Pipeline
    │  ├─ response_builder.py        # 최종 응답 생성
+   │  ├─ review_order.py            # 분석 결과 내 검토 확인 순서
    │  └─ severity.py                # 위험도 산정
    │
    ├─ data/
@@ -406,8 +414,15 @@ safEYE-capstone/
    ├─ scripts/
    │  ├─ extract_hwpx.py
    │  ├─ parse_articles.py
-   │  └─ build_vector_db.py
+   │  ├─ build_vector_db.py
+   │  └─ smoke_collapse_pipeline.py # 쓰러짐 연동 스모크 테스트
    │
+   ├─ tests/                       # 판정·확대 검토·쓰러짐 등 자동 테스트
+   ├─ docs/                        # 작업 기록
+   ├─ models/                      # YOLO·MediaPipe 모델 (별도 다운로드, Git 제외)
+   ├─ pose_results/                # 검증 결과·확대 이미지·캐시 (Git 제외)
+   ├─ detect_collapse.py            # 자세·하강·유지시간 기반 쓰러짐 조건
+   ├─ requirements.collapse.txt    # YOLO·MediaPipe·추적 추가 의존성
    └─ requirements.local.txt
 ```
 

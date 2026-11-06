@@ -72,4 +72,6 @@ class ReviewOrderTests(unittest.TestCase):
         self.assertFalse(data['is_danger']);self.assertEqual(data['severity'],'WARNING')
         self.assertEqual(data['ragMetadata']['review_queue'][0]['risk_type'],'COLLAPSE')
         self.assertEqual(data['ragMetadata']['hazards'][0]['risk_type'],'NO_HELMET')
+        self.assertEqual(result.ragMetadata['hazards'][0]['evidence'],'관찰 근거')
+        self.assertNotIn('evidence',data['ragMetadata']['hazards'][0])
 if __name__=='__main__':unittest.main()
