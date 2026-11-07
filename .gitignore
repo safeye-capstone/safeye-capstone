@@ -255,3 +255,12 @@ uploads/images/*
 *.tar.gz
 *.rar
 *.7z
+
+
+# ============================================================
+# collapse_ Files
+# ============================================================
+
+/vlm-workspace/.venv-pose/
+/vlm-workspace/pose_results/
+/vlm-workspace/models/pose_landmarker_lite.task

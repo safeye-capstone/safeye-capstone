@@ -1,0 +1,6 @@
+-r requirements.local.txt
+ultralytics==8.4.202
+mediapipe==1.2.2
+lap==0.5.14
+# Install a mutually compatible torch/torchvision build for the target CPU or GPU.
+# Local validated CPU pair: torch==2.9.1+cpu, torchvision==0.24.1+cpu.

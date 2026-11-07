@@ -1,4 +1,5 @@
 import json
+import hashlib
 import logging
 from pathlib import Path
 from typing import Any
@@ -293,53 +294,74 @@ def run_single_reverification(
     image_path: Path,
     risk_type: str,
     instruction: str,
+    candidate: dict | None = None,
 ) -> dict[str, Any]:
-    prompt = build_reverification_prompt(
-        risk_type=risk_type,
-        additional_instruction=instruction,
-    )
-
-    raw_response = analyze_image(
-        image_path=image_path,
-        prompt=prompt,
-    )
-
-    analysis = parse_vlm_json(raw_response)
-
-    # 기존 query_builder의 논리 정규화를
-    # 재검증 결과에도 동일하게 적용
-    analysis = normalize_vlm_analysis(analysis)
-
-    target_hazard = find_target_hazard(
-        analysis,
-        risk_type,
-    )
-
-    detected = target_hazard is not None
-    evidence = ""
-    confidence = "LOW"
-
-    if target_hazard:
-        evidence = target_hazard.get("evidence", "")
-        confidence = target_hazard.get("confidence", "LOW")
-
-    return {
-        "detected": detected,
-        "confidence": confidence,
-        "evidence": evidence,
-    }
+    from app.rag.spatial_review import review_candidate
+    return review_candidate(image_path, risk_type, candidate)
 
 
 # ============================================================
 # Semantic Prompt Ensemble
 #
-# 동일 이미지에 대해
-# 서로 다른 표현의 Prompt 2개를 사용한다.
+# 가능한 경우 서로 다른 인접 프레임을 확인한다.
+# 같은 모델의 동의 자체를 독립적인 시각 증거로 취급하지 않는다.
 # ============================================================
+
+def update_confirmation_observations(hazard, details, frame_results):
+    """Update frame evidence, not votes; never count an image twice or erase timeline gaps."""
+    positions = {str(frame.get("frame")): index for index, frame in enumerate(frame_results)}
+    observations = {item["frame"]: dict(item) for item in hazard.get("confirmation_observations", [])
+                    if item.get("frame") in positions}
+    for detail in details:
+        name = detail.get("frame")
+        if detail.get("status") != "SUCCESS" or name not in positions:
+            continue
+        if (detail.get("detected") and detail.get("confirmation_eligible")
+                and detail.get("candidate_source") == "vlm" and detail.get("confidence") in {"MEDIUM", "HIGH"}):
+            observations[name] = {"frame": name, "worker_ids": detail.get("worker_ids", []),
+                                  "visual_evidence": detail.get("visual_evidence", []),
+                                  "evidence": detail.get("evidence", ""), "source": "distinct_frame_reverification",
+                                  "observation_method": detail.get("observation_method")}
+        else:
+            observations.pop(name, None)
+    flags = [int(str(frame.get("frame")) in observations) for frame in frame_results]
+    window = min(hazard.get("confirmation_window_size", 3), len(flags))
+    maximum = max((sum(flags[index:index+window]) for index in range(len(flags)-window+1)), default=0)
+    required = hazard.get("required_count", 2)
+    focused_flags = [int(observations.get(str(frame.get("frame")), {}).get("observation_method") == "focused_fields_v1") for frame in frame_results]
+    focused_max = max((sum(focused_flags[index:index+window]) for index in range(len(focused_flags)-window+1)), default=0)
+    focused_ready = sum(focused_flags) >= required and focused_max >= required
+    return {"confirmation_observations": list(observations.values()),
+            "confirmation_detection_count": len(observations), "confirmation_window_max": maximum,
+            "focused_confirmation_count": sum(focused_flags),
+            "focused_confirmation_ready": focused_ready,
+            "confirmation_ready": len(observations) >= required and maximum >= required}
+
+
+def select_distinct_reverification_frames(image_path: Path, frame_results: list[dict[str, Any]], frame_dir: Path) -> list[Path]:
+    """Choose one nearby, different frame; never count duplicate image bytes twice."""
+    names = [str(frame.get("frame", "")) for frame in frame_results]
+    index = names.index(image_path.name) if image_path.name in names else 0
+    selected = [image_path]
+    seen = {hashlib.sha256(image_path.read_bytes()).hexdigest()}
+    root = frame_dir.resolve()
+    for other in sorted(range(len(names)), key=lambda value: (abs(value-index), value)):
+        path = frame_dir / names[other]
+        if path.resolve().parent != root or not path.is_file():
+            continue
+        fingerprint = hashlib.sha256(path.read_bytes()).hexdigest()
+        if fingerprint in seen:
+            continue
+        selected.append(path)
+        break
+    return selected
+
 
 def run_prompt_ensemble(
     image_path: Path,
     risk_type: str,
+    additional_image_paths: list[Path] | None = None,
+    candidates_by_frame: dict | None = None,
 ) -> dict[str, Any]:
     prompts = REVERIFICATION_PROMPTS.get(risk_type, [])
 
@@ -353,6 +375,14 @@ def run_prompt_ensemble(
             "details": [],
         }
 
+    paths = []
+    fingerprints = set()
+    for path in [image_path, *(additional_image_paths or [])]:
+        fingerprint = hashlib.sha256(path.read_bytes()).hexdigest()
+        if fingerprint not in fingerprints:
+            paths.append(path)
+            fingerprints.add(fingerprint)
+    prompts = prompts[:len(paths)]
     details = []
     positive_votes = 0
     successful_votes = 0
@@ -367,19 +397,21 @@ def run_prompt_ensemble(
 
         try:
             result = run_single_reverification(
-                image_path=image_path,
+                image_path=paths[index-1],
                 risk_type=risk_type,
                 instruction=instruction,
+                candidate=(candidates_by_frame or {}).get(paths[index-1].name),
             )
 
-            successful_votes += 1
+            successful_votes += int(result.get("conclusive", True))
 
-            if result["detected"]:
+            if result["detected"] and result.get("conclusive", True):
                 positive_votes += 1
 
             details.append(
                 {
                     "prompt_index": index,
+                    "frame": paths[index-1].name,
                     "status": "SUCCESS",
                     **result,
                 }
@@ -405,6 +437,7 @@ def run_prompt_ensemble(
             details.append(
                 {
                     "prompt_index": index,
+                    "frame": paths[index-1].name,
                     "status": "FAILED",
                     "error": str(error),
                 }
@@ -597,11 +630,21 @@ def apply_reverification(
             frame_path.name,
         )
 
+        verification_frames = select_distinct_reverification_frames(frame_path, frame_results, frame_dir)
+        from app.rag.focused_observation import build_review_context
+        candidates_by_frame = {}
+        for frame in frame_results:
+            candidate = next((item for item in frame.get("hazards", []) if item.get("risk_type") == risk_type and item.get("detected")), None)
+            candidates_by_frame[frame.get("frame")] = {"review_context": build_review_context(frame, risk_type, candidate)}
         ensemble_result = run_prompt_ensemble(
-            image_path=frame_path,
+            image_path=verification_frames[0],
             risk_type=risk_type,
+            additional_image_paths=verification_frames[1:],
+            candidates_by_frame=candidates_by_frame,
         )
 
+        updated_confirmation = update_confirmation_observations(
+            hazard, ensemble_result.get("details", []), frame_results)
         prompt_agreement = ensemble_result.get("prompt_agreement")
         original_score = float(
             hazard.get("consistency_score", 0.0)
@@ -625,8 +668,13 @@ def apply_reverification(
         results.append(
             {
                 **hazard,
+                **updated_confirmation,
                 "reverification_applied": True,
+                "observation_conflict_required": any(detail.get("verification_conflicts") for detail in ensemble_result.get("details", [])),
                 "reverification_frame": frame_path.name,
+                "reverification_frames": [path.name for path in verification_frames],
+                "reverification_unique_frames": len({detail.get("frame") for detail in ensemble_result.get("details", [])
+                                                     if detail.get("status") == "SUCCESS" and detail.get("conclusive", True)}),
                 "reverification_successful_votes": ensemble_result.get(
                     "successful_votes",
                     0,

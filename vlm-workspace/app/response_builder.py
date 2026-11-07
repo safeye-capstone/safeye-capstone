@@ -66,6 +66,8 @@ def build_action_guide(analysis: dict, severity: str) -> str:
         actions.append(
             "작업발판, 안전난간, 개구부 방호 및 추락방호조치 상태를 확인하고 미비한 조치를 보완하세요."
         )
+    if "COLLAPSE" in risk_types:
+        actions.append("현장 관리자에게 쓰러짐 의심 상황을 알리고 해당 작업자의 상태와 주변 위험을 즉시 확인하세요.")
     if "NO_HELMET" in risk_types:
         actions.append("작업자에게 안전모를 즉시 착용시키고 정상 착용 상태를 확인하세요.")
     if "BLOCKED_PATH" in risk_types:
