@@ -1,6 +1,7 @@
 """기존 이미지 위험 판단을 유지하고 불확실한 후보를 검토 대기로 구분한다."""
 
 import json
+import logging
 from copy import deepcopy
 from pathlib import Path
 
@@ -13,11 +14,14 @@ from app.rag.query_builder import (
 )
 from app.rag.regulation_retriever import search_regulations
 from app.response_builder import (
+    exclude_original_debug_records,
     build_action_guide,
     build_violated_regulation,
     build_vlm_description,
 )
 from app.severity import calculate_severity
+
+logger = logging.getLogger(__name__)
 
 HARNESS_RISK = "UNFASTENED_SAFETY_HARNESS"
 HARNESS_VIOLATIONS = {"NOT_WEARING", "WORN_NOT_CONNECTED"}
@@ -107,10 +111,18 @@ def classify_image_hazards(raw_analysis: dict, analysis: dict) -> list[dict]:
         reason = None
         if confidence == "LOW" or raw_only_low:
             reason = "모델 위험 판단의 신뢰도가 LOW여서 추가 확인이 필요함"
-        if risk_type == "NO_HELMET" and not definite_helmet and uncertain_helmet:
-            reason = "작업자의 안전모 착용 상태가 불확실하여 추가 확인이 필요함"
+        if risk_type == "NO_HELMET" and not definite_helmet:
+            reason = (
+                "작업자의 안전모 착용 상태가 불확실하여 추가 확인이 필요함"
+                if uncertain_helmet or not workers else
+                "안전모 착용 관찰과 미착용 위험 판정이 상충하여 추가 확인이 필요함"
+            )
+            hazard = {**hazard, "evidence": reason}
         if risk_type == HARNESS_RISK and not definite_harness:
             reason = "고소작업 여부 또는 안전대 착용·체결 상태가 명확하지 않음"
+            hazard = {**hazard, "evidence": reason}
+        if hazard.get("consistency_review_required"):
+            reason = hazard.get("consistency_reason") or "안전모 관찰과 위험 판정이 상충하여 추가 확인이 필요함"
         decision = "REVIEW_REQUIRED" if reason else "CONFIRMED"
         results.append({
             **hazard,
@@ -139,7 +151,19 @@ def analyze_image_for_api(image_path: str | Path) -> AIAnalysisResponse:
     decision_state = "CONFIRMED" if confirmed else "REVIEW_REQUIRED" if pending else "NO_DETECTION"
     severity = calculate_severity(confirmed_analysis) if confirmed else "WARNING" if pending else "INFO"
 
-    description = build_vlm_description(confirmed_analysis) if confirmed or not pending else ""
+    # 제거된 위험의 주장이 원본 장면 설명에 남을 수 있으므로 설명에서 재사용하지 않는다.
+    # 원본 위험 기록과 최종 판단은 유지하고, 설명에 사용할 사본만 조정한다.
+    raw_detected_types = {
+        risk_type
+        for hazard in raw_analysis.get("hazards", [])
+        if hazard.get("detected", False)
+        for risk_type in split_risk_types(hazard.get("risk_type", ""))
+    }
+    retained_types = {hazard.get("risk_type") for hazard in hazards}
+    scene = "" if raw_detected_types - retained_types else str(analysis.get("scene_description") or "").strip()
+    description_analysis = {**confirmed_analysis, "scene_description": scene}
+
+    description = build_vlm_description(description_analysis) if confirmed or not pending else ""
     if pending:
         evidence = [str(hazard.get("evidence") or "").strip() for hazard in pending]
         evidence = list(dict.fromkeys(item for item in evidence if item))
@@ -147,7 +171,6 @@ def analyze_image_for_api(image_path: str | Path) -> AIAnalysisResponse:
         if evidence:
             review_text += " 후보 관찰 근거: " + " / ".join(evidence[:3])
         if not confirmed:
-            scene = str(analysis.get("scene_description") or "").strip()
             description = scene
         description = " ".join(item for item in (description, review_text) if item)
 
@@ -158,6 +181,11 @@ def analyze_image_for_api(image_path: str | Path) -> AIAnalysisResponse:
             "검토 대기 후보는 현장 담당자가 확인하고 필요한 안전조치를 판단해 주세요.",
         ) if item)
 
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("이미지 원본 디버깅 기록: %s", json.dumps({
+            "raw_analysis": raw_analysis, "hazards": hazards,
+        }, ensure_ascii=False, default=str))
+
     return AIAnalysisResponse(
         is_danger=bool(confirmed),
         severity=severity,
@@ -167,10 +195,9 @@ def analyze_image_for_api(image_path: str | Path) -> AIAnalysisResponse:
         ragMetadata={
             "vlm_decision_state": decision_state,
             "analysis_source": "single_image",
-            "hazards": hazards,
+            "hazards": exclude_original_debug_records(hazards),
             "related_regulations": confirmed_regulations + pending_regulations,
             "confirmed_regulations": confirmed_regulations,
             "review_required_regulations": pending_regulations,
-            "raw_hazards": raw_analysis.get("hazards", []),
         },
     )
