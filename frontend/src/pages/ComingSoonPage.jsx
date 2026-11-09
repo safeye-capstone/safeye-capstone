@@ -12,7 +12,7 @@ export default function ComingSoonPage() {
       <PageHeader>
         <span
           className="flex items-center gap-1 px-2 py-1 rounded-md text-[11.5px]
-        font-bold bg-warn-bg text-warn"
+        font-bold bg-warn-bg text-warn-strong"
         >
           <Hammer size={12} /> 개발 예정
         </span>

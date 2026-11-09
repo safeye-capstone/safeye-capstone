@@ -70,7 +70,7 @@ function ResultList({
               className={`border rounded-lg p-4 mb-3 ${tone.box}`}
             >
               <header className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
-                <DecisionBadge event={item} />
+                <DecisionBadge event={item} showUnknown />
 
                 {item.zoneName && (
                   <span className="text-xs text-muted min-w-0 truncate">
@@ -83,7 +83,7 @@ function ResultList({
               </header>
 
               {isReviewRequired(item) && (
-                <p className="mb-3 px-3 py-2 rounded-md border border-warn bg-white/70 text-sm font-semibold text-warn break-keep">
+                <p className="mb-3 px-3 py-2 rounded-md border border-warn bg-white/70 text-sm font-semibold text-warn-strong break-keep">
                   사람 확인 필요 — AI가 위험으로 확정하지 못한 건입니다.
                   현장에서 직접 확인해 주세요.
                 </p>

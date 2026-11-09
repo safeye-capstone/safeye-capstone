@@ -1,14 +1,18 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import PageHeader from "../components/layout/PageHeader";
-import SeverityBar from "../components/report/SeverityBar";
+import JudgmentBar from "../components/report/JudgmentBar";
 import GenerateReportButton from "../components/report/GenerateReportButton";
 import ZoneStatsTable from "../components/report/ZoneStatsTable";
 import { useDailyReport } from "../hooks/useDailyReport";
 import { useTodayKST } from "../hooks/useTodayKST";
 import { addDays, formatReportDate, formatDate } from "../utils/date";
-import { SEVERITY_BADGE } from "../constants/severity";
-import { DECISION_STATES } from "../constants/decisionState";
+import {
+  DECISION_STATES,
+  JUDGMENT,
+  JUDGMENT_META,
+  countsFromDecisionStates,
+} from "../constants/decisionState";
 import { FEATURE_RESOLUTION_STATS } from "../constants/config";
 
 const PENDING_NOTE = "집계 예정";
@@ -57,6 +61,10 @@ function ReportPage() {
 
   const summary = report?.summary;
   const decisionCounts = summary?.decisionStateCounts ?? {};
+  // 예전 리포트는 decisionStateCounts가 {}라서 판정 집계가 없음
+  const hasJudgmentCounts = Object.keys(decisionCounts).length > 0;
+  const judgmentCounts = countsFromDecisionStates(decisionCounts);
+  const NO_JUDGMENT_NOTE = "판정 집계 없음";
   const pending = !FEATURE_RESOLUTION_STATS;
 
   return (
@@ -160,30 +168,29 @@ function ReportPage() {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard label="전체 이벤트" value={report.totalCount ?? 0} />
-            <StatCard
-              label={SEVERITY_BADGE.CRITICAL.label}
-              value={report.criticalCount ?? 0}
-            />
-            <StatCard
-              label={SEVERITY_BADGE.WARNING.label}
-              value={report.warningCount ?? 0}
-            />
-            <StatCard
-              label={SEVERITY_BADGE.INFO.label}
-              value={report.infoCount ?? 0}
-            />
+            {[JUDGMENT.DANGER, JUDGMENT.WARNING, JUDGMENT.SAFE].map((key) => (
+              <StatCard
+                key={key}
+                label={JUDGMENT_META[key].label}
+                value={judgmentCounts[key]}
+                muted={!hasJudgmentCounts}
+                note={NO_JUDGMENT_NOTE}
+              />
+            ))}
           </div>
 
           <section className="border border-border rounded-lg bg-white p-5">
-            <h2 className="text-[13px] font-bold text-ink mb-4">
-              위험 등급 분포
-            </h2>
+            <h2 className="text-[13px] font-bold text-ink mb-4">판정 분포</h2>
             {(report.totalCount ?? 0) === 0 ? (
               <p className="text-sm text-muted">
                 해당 날짜에 기록된 이벤트가 없습니다.
               </p>
+            ) : !hasJudgmentCounts ? (
+              <p className="text-sm text-muted">
+                이 리포트에는 판정 집계가 없습니다.
+              </p>
             ) : (
-              <SeverityBar report={report} />
+              <JudgmentBar counts={judgmentCounts} />
             )}
           </section>
 
