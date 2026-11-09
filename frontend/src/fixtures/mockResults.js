@@ -107,7 +107,7 @@ export const CASE_REVIEW = {
   resolvedAt: null,
 };
 
-/** 6. AI가 오탐으로 기각 — 실제로는 영상에서만 발생. 안전 회색, 경보 없음 */
+/** 6. AI가 오탐으로 기각 — 실제로는 영상에서만 발생. 재검증이 틀릴 수 있어 경고(노랑), 확인 필요 토스트 */
 export const CASE_REJECTED = {
   id: "c3e6a9b2-4d57-4f80-9c93-5a7b9d1f3e42",
   isDanger: false,

@@ -31,7 +31,7 @@ const SEVERITY_BY_STATE = {
   NO_DETECTION: "INFO",
 };
 
-// 대략 위험 18% / 경고 18% / 안전 64%
+// 대략 위험 18% / 경고 36%(검토 대기 18% + 기각 18%) / 안전 45%
 const STATE_POOL = [
   ...Array(2).fill("CONFIRMED"),
   ...Array(2).fill("REVIEW_REQUIRED"),
@@ -46,8 +46,7 @@ function pick(arr, i) {
 // 이력은 안전 관리자 화면이라 판정 불명(값 없음)은 넣지 않는다
 export const MOCK_HISTORY = Array.from({ length: 45 }, (_, i) => {
   const decisionState = pick(STATE_POOL, i * 3 + 1);
-  const isAlert =
-    decisionState === "CONFIRMED" || decisionState === "REVIEW_REQUIRED";
+  const isAlert = decisionState !== "NO_DETECTION";
 
   // 최근 것부터 약 40분 간격
   const detectedAt = new Date(

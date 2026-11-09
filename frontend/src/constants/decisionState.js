@@ -27,10 +27,11 @@ export const ALERT_KIND = {
   NOTICE: "notice",
 };
 
+// REJECTED는 AI 재검증이 틀릴 수 있어 사람이 확인하도록 경고로 둔다 (멘토링 결정)
 const STATE_TO_JUDGMENT = {
   [DECISION_STATE.CONFIRMED]: JUDGMENT.DANGER,
   [DECISION_STATE.REVIEW_REQUIRED]: JUDGMENT.WARNING,
-  [DECISION_STATE.REJECTED]: JUDGMENT.SAFE,
+  [DECISION_STATE.REJECTED]: JUDGMENT.WARNING,
   [DECISION_STATE.NO_DETECTION]: JUDGMENT.SAFE,
 };
 
@@ -89,13 +90,17 @@ export const JUDGMENT_META = {
   },
 };
 
-// 원본 값별 집계 순서와 라벨 (리포트 판정 분포에 사용)
-// REJECTED와 NO_DETECTION은 둘 다 안전, 개발자 화면에서만 나누기
+// 원본 값별 집계 순서와 라벨 (리포트 판정 분포에서 사용).
+// REVIEW_REQUIRED와 REJECTED는 둘 다 "경고"이고, 개발자 화면에서만 나눠 본다
 export const DECISION_STATES = [
   { key: "CONFIRMED", label: "위험", judgment: JUDGMENT.DANGER },
-  { key: "REVIEW_REQUIRED", label: "경고", judgment: JUDGMENT.WARNING },
-  { key: "REJECTED", label: "안전 · 기각", judgment: JUDGMENT.SAFE },
-  { key: "NO_DETECTION", label: "안전 · 미탐지", judgment: JUDGMENT.SAFE },
+  {
+    key: "REVIEW_REQUIRED",
+    label: "경고 · 검토 대기",
+    judgment: JUDGMENT.WARNING,
+  },
+  { key: "REJECTED", label: "경고 · 기각", judgment: JUDGMENT.WARNING },
+  { key: "NO_DETECTION", label: "안전", judgment: JUDGMENT.SAFE },
   { key: "UNKNOWN", label: "판정 불명", judgment: JUDGMENT.UNKNOWN },
 ];
 
@@ -164,9 +169,9 @@ export function countByJudgment(items = []) {
   return counts;
 }
 
-/**
+/*
  * 리포트의 summary.decisionStateCounts(원본 값별 건수)를 판정별로 합친다.
- * REJECTED + NO_DETECTION = 안전, 모르는 키는 판정 불명
+ * REVIEW_REQUIRED + REJECTED = 경고, 모르는 키는 판정 불명
  */
 export function countsFromDecisionStates(stateCounts) {
   const counts = emptyCounts();
