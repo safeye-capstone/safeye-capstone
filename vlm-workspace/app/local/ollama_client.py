@@ -527,7 +527,7 @@ class GeminiClient:
             raise OllamaUnreachable("LN_GEMINI_API_KEY가 설정되지 않았습니다.")
         return {"x-goog-api-key": self.api_key}
 
-    def _payload(self, image_bytes: bytes, prompt: str, options: dict | None) -> dict:
+    def _payload(self, image_bytes: bytes, prompt: str, json_schema: dict, options: dict | None) -> dict:
         settings = options or {}
         return {
             "contents": [{
@@ -544,7 +544,7 @@ class GeminiClient:
             }],
             "generationConfig": {
                 "responseMimeType": self.response_mime_type,
-                "responseJsonSchema": VLM_SCHEMA,
+                "responseJsonSchema": json_schema,
                 "temperature": settings.get("temperature", self.temperature),
                 "maxOutputTokens": settings.get(
                     "max_output_tokens", self.max_output_tokens
@@ -574,7 +574,7 @@ class GeminiClient:
                     response = await client.post(
                         self._url(model),
                         headers=self._headers(),
-                        json=self._payload(image_bytes, prompt, options),
+                        json=self._payload(image_bytes, prompt, json_schema, options),
                     )
                     response.raise_for_status()
                     body = response.json()
@@ -803,7 +803,7 @@ def request_ollama(
     attempt: int,
 ) -> dict:
     repeat_penalty = 1.15 + (attempt - 1) * 0.05
-    temperature = min(0.10 + (attempt - 1) * 0.05, 0.20)
+    temperature = cfg.temperature
     payload = {
         "model": VLM_MODEL,
         "prompt": prompt,
@@ -877,7 +877,7 @@ def request_gemini(
     if not cfg.gemini_api_key:
         raise OllamaUnreachable("LN_GEMINI_API_KEY가 설정되지 않았습니다.")
 
-    temperature = min(0.10 + (attempt - 1) * 0.05, 0.20)
+    temperature = cfg.temperature
     payload = {
         "contents": [{
             "role": "user",
