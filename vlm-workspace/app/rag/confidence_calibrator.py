@@ -124,6 +124,9 @@ def apply_confidence_recalibration(
         elif not meets_min_detection_count:
             needs_reverification = True
             reverification_reason = "MIN_DETECTION_COUNT_NOT_MET"
+        elif hazard.get("risk_type") != "COLLAPSE" and not hazard.get("confirmation_ready", False):
+            needs_reverification = True
+            reverification_reason = "REQUIRED_VISUAL_EVIDENCE_NOT_MET"
         elif reliability_label != "HIGH":
             needs_reverification = True
             reverification_reason = "RELIABILITY_BELOW_HIGH"

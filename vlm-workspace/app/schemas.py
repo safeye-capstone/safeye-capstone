@@ -5,7 +5,9 @@ VLMInternal은 모델의 내부 분석 결과, VLMResponse는 백엔드 전달 �
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+
+from app.public_metadata import build_public_metadata
 
 Severity = Literal["CRITICAL", "WARNING", "INFO"]
 
@@ -51,8 +53,12 @@ class VLMResponse(BaseModel):
     violated_regulation: str
     ragMetadata: dict[str, Any] | None = Field(
         default=None,
-        description="전체 및 위험별 최종 판단 상태, 일관성 점수, RAG 관련 부가 정보",
+        description="전체·위험별 판정 요약, 검토 확인 순서 및 참고 법령. 내부 상세 검증 기록은 제외",
     )
+
+    @field_serializer("ragMetadata")
+    def serialize_rag_metadata(self, metadata):
+        return build_public_metadata(metadata)
 
 
 # Ollama format 또는 OpenAI response_format에 사용하는 내부 응답 스키마.

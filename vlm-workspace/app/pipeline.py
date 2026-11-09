@@ -11,6 +11,7 @@ from app.rag.aggregator import aggregate_frame_results
 from app.rag.confidence_calibrator import apply_confidence_recalibration
 from app.rag.reverification import apply_reverification
 from app.rag.final_decision import apply_final_decisions
+from app.rag.collapse_verification import apply_collapse_verification
 from app.rag.hazard_consolidator import (
     consolidate_related_hazards,
     get_primary_actionable_hazards,
@@ -58,9 +59,9 @@ def analyze_frame(frame_path: Path) -> dict:
     프레임 한 장을 VLM으로 분석하고
     논리 정규화를 수행한다.
     """
-    raw_response = analyze_image(frame_path)
-    analysis = parse_vlm_json(raw_response)
-    analysis = normalize_vlm_analysis(analysis)
+    from app.rag.focused_observation import analyze_candidates, prepare_frame_candidates
+    raw = analyze_candidates(frame_path, analyze_image)
+    analysis = prepare_frame_candidates(frame_path, raw)
     analysis["frame"] = frame_path.name
     return analysis
 # ============================================================
@@ -480,7 +481,7 @@ def analyze_video(video_name: str, *, verbose: bool = False) -> dict:
     # ========================================================
     reverified_hazards = apply_reverification(
         aggregated_hazards=deepcopy(calibrated_hazards),
-        frame_results=deepcopy(frame_results),
+        frame_results=deepcopy(aggregation_timeline),
         frame_dir=frame_dir,
     )
     # 재검증까지 끝난 결과 확인
@@ -494,6 +495,9 @@ def analyze_video(video_name: str, *, verbose: bool = False) -> dict:
     # REJECTED
     # ========================================================
     decided_hazards = apply_final_decisions(deepcopy(reverified_hazards))
+    collapse_started = time.perf_counter()
+    decided_hazards = apply_collapse_verification(decided_hazards, video_path)
+    collapse_seconds = time.perf_counter() - collapse_started
     # ========================================================
     # 8. Hazard Relation / 중복 위험 통합
     #
@@ -542,6 +546,7 @@ def analyze_video(video_name: str, *, verbose: bool = False) -> dict:
             "extraction": round(extraction_seconds, 3),
             "frame_analysis": round(inference_seconds, 3),
             "decision_and_reverification": round(decision_seconds, 3),
+            "collapse_verification": round(collapse_seconds, 3),
             "rag": round(time.perf_counter() - rag_started, 3),
             "total": round(time.perf_counter() - started, 3),
         },

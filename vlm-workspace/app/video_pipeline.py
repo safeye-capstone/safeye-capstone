@@ -13,6 +13,7 @@ RISK_LABELS = {
     "UNFASTENED_SAFETY_HARNESS": "안전대 또는 안전고리 미체결",
     "FALL_HAZARD": "추락 위험",
     "BLOCKED_PATH": "통행로 장애",
+    "COLLAPSE": "쓰러짐 의심",
 }
 VALID_DECISIONS = {"CONFIRMED", "REVIEW_REQUIRED", "REJECTED"}
 CRITICAL_RISK_TYPES = {"UNFASTENED_SAFETY_HARNESS", "FALL_HAZARD"}
@@ -99,7 +100,7 @@ def collect_regulations(result: dict[str, Any]) -> list[dict[str, Any]]:
     """확정된 대표 위험의 법령만 위반 법령 응답용으로 수집한다."""
     confirmed_types = {
         hazard.get("risk_type") for hazard in get_final_hazards(result)
-        if hazard["final_decision"] == "CONFIRMED"
+        if hazard["final_decision"] == "CONFIRMED" and hazard.get("risk_type") != "COLLAPSE"
     }
     collected = []
     seen = set()
@@ -139,9 +140,19 @@ def build_rag_metadata(result: dict[str, Any]) -> dict[str, Any]:
                 if field in rag_result:
                     record[field] = deepcopy(rag_result[field])
         records.append(record)
+    from app.review_order import attach_review_order, REVIEW_ORDER_POLICY
+    records, review_queue = attach_review_order(records, result.get("frames", []))
     return {
         "vlm_decision_state": get_video_decision_state(result),
         "hazards": records,
+        "review_queue": review_queue,
+        "review_order_policy": REVIEW_ORDER_POLICY,
+        "scene_contexts": [{"frame": frame.get("frame"), "context": deepcopy(frame.get("scene_context"))}
+                           for frame in result.get("frames", []) if frame.get("scene_context")],
+        "context_exclusions": [{"frame": frame.get("frame"), "hazard": deepcopy(hazard)}
+                               for frame in result.get("frames", []) for hazard in frame.get("hazards", [])
+                               if hazard.get("applicability_status") in {"NOT_INDUSTRIAL_CONTEXT", "POSTURE_CONTRADICTION"}
+                               and hazard.get("observed_detected")],
         "request_id": result.get("request_id"),
         "total_frames": result.get("total_frames"),
         "analyzed_frames": result.get("analyzed_frames"),
