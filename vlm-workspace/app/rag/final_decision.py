@@ -75,11 +75,3 @@ def apply_final_decisions(hazards: list[dict[str, Any]]) -> list[dict[str, Any]]
             }
         )
     return results
-
-
-def get_actionable_hazards(hazards: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """기각을 제외하고 확정 및 재검토 후보를 후속 처리에 유지한다."""
-    return [
-        hazard for hazard in hazards
-        if hazard.get("final_decision") in {CONFIRMED, REVIEW_REQUIRED}
-    ]

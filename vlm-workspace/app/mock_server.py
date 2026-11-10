@@ -109,7 +109,6 @@ async def _internal(raw: bytes, want: str | None) -> VLMInternal:
 @app.post("/v1/analyze", response_model=VLMResponse)
 async def analyze(
     image: UploadFile = File(...),
-    zone: str | None = Form(None),
     mock_mode: str | None = Form(None),
     scenario: str | None = Form(None),
     delay: float | None = Form(None),
@@ -157,7 +156,6 @@ async def index():
         },
         "form_fields": {
             "image": "required",
-            "zone": "optional",
             "scenario": "CRITICAL | WARNING | INFO | CRITICAL_PINCH | LOW_CONFIDENCE | EMPTY_SCENE",
             "mock_mode": list(FailingMock.MODES),
             "delay": "seconds; 0 means immediate response",

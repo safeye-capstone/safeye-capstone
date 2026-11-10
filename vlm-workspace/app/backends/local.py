@@ -12,12 +12,14 @@ import os
 import httpx
 
 from app.config import settings
+from app.local.config import local_settings as local_cfg
 from app.schemas import INTERNAL_JSON_SCHEMA, VLMInternal
 from app.local.ollama_client import (
     OllamaClient,
     OllamaError,
     OllamaTimeout,
     OllamaUnreachable,
+    create_vlm_client,
 )
 
 log = logging.getLogger(__name__)
@@ -33,14 +35,17 @@ class LocalBackend:
     def __init__(self, base_url: str | None = None, model: str | None = None):
         self.base_url = (base_url or settings.ollama_base_url).rstrip("/")
         self.model = model or settings.local_model
-        self.client = OllamaClient(
-            base_url=self.base_url,
-            model=self.model,
-            connect_timeout=settings.local_connect_timeout,
-            read_timeout=settings.local_read_timeout,
-            num_predict=settings.max_output_tokens,
-            temperature=settings.temperature,
-        )
+        if local_cfg.vlm_provider == "gemini":
+            self.client = create_vlm_client()
+        else:
+            self.client = OllamaClient(
+                base_url=self.base_url,
+                model=self.model,
+                connect_timeout=settings.local_connect_timeout,
+                read_timeout=settings.local_read_timeout,
+                num_predict=settings.max_output_tokens,
+                temperature=settings.temperature,
+            )
 
     async def analyze(self, image_bytes: bytes, prompt: str) -> VLMInternal:
         obj, timing = await self.client.chat_json(

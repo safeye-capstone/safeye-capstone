@@ -29,6 +29,10 @@ from app.local.ollama_client import (
     OllamaClient,
     OllamaTimeout,
     OllamaUnreachable,
+    VLMClient,
+    VLMTransientError,
+    create_vlm_client,
+    retry_delay_seconds,
 )
 
 log = logging.getLogger("local-node")
@@ -48,7 +52,9 @@ class Runtime:
         self.n_json_retry = 0
 
     @staticmethod
-    def _build(model: str) -> OllamaClient:
+    def _build(model: str) -> VLMClient:
+        if cfg.vlm_provider == "gemini":
+            return create_vlm_client()
         return OllamaClient(
             base_url=cfg.ollama_base_url,
             model=model,
@@ -135,6 +141,9 @@ async def analyze_internal(
     try:
         async with rt.sem:
             data, timing = await _infer(img, text)
+    except VLMTransientError as e:
+        rt.n_fail += 1
+        raise HTTPException(503, f"VLM temporarily unavailable: {e}") from e
     except OllamaUnreachable as e:
         rt.n_fail += 1
         raise HTTPException(503, f"ollama unreachable: {e}")
@@ -175,11 +184,13 @@ async def _infer(img: bytes, prompt: str):
         try:
             obj, timing = await rt.client.chat_json(img, prompt, INTERNAL_JSON_SCHEMA)
             return VLMInternal.model_validate(obj), timing
-        except (OllamaBadJSON, ValidationError) as e:
+        except (VLMTransientError, OllamaBadJSON, ValidationError) as e:
             last = e
             if attempt < retries:
                 rt.n_json_retry += 1
                 log.warning("schema retry %d/%d: %s", attempt + 1, retries, e)
+                if isinstance(e, VLMTransientError):
+                    await asyncio.sleep(retry_delay_seconds(attempt + 1, e))
     if last:
         raise last
     raise OllamaBadJSON("inference failed without an exception")
