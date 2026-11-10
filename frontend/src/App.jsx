@@ -20,7 +20,6 @@ function App() {
           <Route path="/analyze/video" element={<AnalyzeVideoPage />} />
           <Route path="/history" element={<HistoryPage />} />
 
-          <Route path="/history/:id" element={<ComingSoonPage />} />
           <Route path="/compliance" element={<ComingSoonPage />} />
           <Route path="/compliance/:no" element={<ComingSoonPage />} />
           <Route path="/report" element={<ReportPage />} />
