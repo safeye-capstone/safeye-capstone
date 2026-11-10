@@ -11,12 +11,31 @@ import { getEventDetailPath } from "../../hooks/useEventDetail";
 import { playSiren, unlockSiren } from "../../utils/siren";
 
 const TOAST_DURATION_MS = 8000;
+const MIN_RESUME_MS = 2000;
 
 function ToastItem({ alert, onDismiss, onOpen }) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = hovered || focused;
+
+  const remainingRef = useRef(TOAST_DURATION_MS);
+
   useEffect(() => {
-    const timer = setTimeout(() => onDismiss(alert.id), TOAST_DURATION_MS);
-    return () => clearTimeout(timer);
-  }, [alert.id, onDismiss]);
+    if (paused) return;
+
+    const startedAt = Date.now();
+    const timer = setTimeout(() => onDismiss(alert.id), remainingRef.current);
+
+    return () => {
+      clearTimeout(timer);
+      const left = remainingRef.current - (Date.now() - startedAt);
+      remainingRef.current = Math.max(left, MIN_RESUME_MS);
+    };
+  }, [paused, alert.id, onDismiss]);
+
+  const handleBlur = (e) => {
+    if (!e.currentTarget.constains(e.relatedTarget)) setFocused(false);
+  };
 
   const { label, tone, alertKind } = getDecisionView(alert);
   const isSiren = alertKind === ALERT_KIND.SIREN;
@@ -26,6 +45,10 @@ function ToastItem({ alert, onDismiss, onOpen }) {
 
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={handleBlur}
       className={`relative w-[340px] rounded-[12px] border shadow-lg ${tone.box}`}
     >
       {/* 본문 전체가 상세로 가는 버튼 */}
