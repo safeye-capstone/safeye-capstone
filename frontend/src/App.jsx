@@ -7,6 +7,7 @@ import AppLayout from "./components/layout/AppLayout";
 import MonitorPage from "./pages/MonitorPage";
 import HistoryPage from "./pages/HistoryPage";
 import ReportPage from "./pages/ReportPage";
+import EventDetailPage from "./pages/EventDetailPage";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/compliance/:no" element={<ComingSoonPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/settings" element={<ComingSoonPage />} />
+          <Route path="/history/:id" element={<EventDetailPage />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
